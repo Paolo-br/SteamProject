@@ -1,0 +1,75 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "CrashReportEvent",
+  "doc": "Événement émis lors d'un crash ou incident de jeu",
+  "fields": [
+    {
+      "name": "crashId",
+      "type": "string",
+      "doc": "Identifiant unique du crash"
+    },
+    {
+      "name": "gameId",
+      "type": "string",
+      "doc": "Identifiant du jeu"
+    },
+    {
+      "name": "gameName",
+      "type": "string",
+      "doc": "Nom du jeu"
+    },
+    {
+      "name": "playerId",
+      "type": "string",
+      "doc": "Identifiant du joueur affecté"
+    },
+    {
+      "name": "editeurId",
+      "type": "string",
+      "doc": "Editeur du jeu affecté"
+    },
+    {
+      "name": "editeurName",
+      "type": "string",
+      "doc": "Nom de l'éditeur du jeu affecté"
+    },
+    {
+      "name": "gameVersion",
+      "type": "string",
+      "doc": "Version du jeu lors du crash"
+    },
+    {
+      "name": "platform",
+      "type": "string",
+      "doc": "Plateforme concernée"
+    },
+    {
+      "name": "severity",
+      "type": {
+        "type": "enum",
+        "name": "CrashSeverity",
+        "symbols": ["MINOR", "MODERATE", "CRITICAL", "GAME_BREAKING"]
+      },
+      "doc": "Sévérité de l'incident"
+    },
+    {
+      "name": "errorType",
+      "type": "string",
+      "doc": "Type d'erreur (ex: NullPointerException, OutOfMemory)"
+    },
+    {
+      "name": "errorMessage",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Message d'erreur détaillé"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "default": 0,
+      "doc": "Timestamp de l'événement"
+    }
+  ]
+}
+

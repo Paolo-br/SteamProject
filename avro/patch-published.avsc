@@ -1,0 +1,73 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "PatchPublishedEvent",
+  "doc": "Événement émis lors de la publication d'un patch/mise à jour",
+  "fields": [
+    {
+      "name": "gameId",
+      "type": "string",
+      "doc": "Identifiant du jeu"
+    },
+    {
+      "name": "gameName",
+      "type": "string",
+      "doc": "Nom du jeu"
+    },
+    {
+      "name": "platform",
+      "type": "string",
+      "doc": "Plateforme concernée"
+    },
+    {
+      "name": "oldVersion",
+      "type": "string",
+      "doc": "Version précédente"
+    },
+    {
+      "name": "newVersion",
+      "type": "string",
+      "doc": "Nouvelle version"
+    },
+    {
+      "name": "changeLog",
+      "type": "string",
+      "doc": "Description générale des changements"
+    },
+    {
+      "name": "changes",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "Change",
+          "fields": [
+            {
+              "name": "type",
+              "type": {
+                "type": "enum",
+                "name": "PatchType",
+                "symbols": ["FIX", "ADD", "OPTIMIZATION"]
+              },
+              "doc": "Type de changement"
+            },
+            {
+              "name": "description",
+              "type": "string",
+              "doc": "Description du changement"
+            }
+          ]
+        }
+      },
+      "default": [],
+      "doc": "Liste détaillée des changements"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "default": 0,
+      "doc": "Timestamp de l'événement"
+    }
+  ]
+}
+

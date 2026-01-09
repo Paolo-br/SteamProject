@@ -1,0 +1,49 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "GameTrendingEvent",
+  "doc": "Événement de tendance/popularité d'un jeu",
+  "fields": [
+    {
+      "name": "gameId",
+      "type": "string",
+      "doc": "Identifiant du jeu"
+    },
+    {
+      "name": "gameName",
+      "type": "string",
+      "doc": "Nom du jeu"
+    },
+    {
+      "name": "trendType",
+      "type": {
+        "type": "enum",
+        "name": "TrendType",
+        "symbols": ["RISING_STAR", "TOP_SELLER", "HIGHLY_RATED", "DECLINING", "CONTROVERSIAL"]
+      },
+      "doc": "Type de tendance détectée"
+    },
+    {
+      "name": "metric",
+      "type": "string",
+      "doc": "Métrique source (sales, ratings, players, etc.)"
+    },
+    {
+      "name": "changePercentage",
+      "type": "double",
+      "doc": "Pourcentage de changement"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "doc": "Message descriptif de la tendance"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "default": 0,
+      "doc": "Timestamp de l'événement"
+    }
+  ]
+}
+

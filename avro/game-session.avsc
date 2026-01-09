@@ -1,0 +1,45 @@
+{
+}
+  ]
+    }
+      "doc": "Timestamp de l'événement"
+      "default": 0,
+      "type": "long",
+      "name": "timestamp",
+    {
+    },
+      "doc": "Durée de la session en minutes"
+      "type": "int",
+      "name": "sessionDuration",
+    {
+    },
+      "doc": "Nom d'utilisateur du joueur"
+      "type": "string",
+      "name": "playerUsername",
+    {
+    },
+      "doc": "Identifiant du joueur"
+      "type": "string",
+      "name": "playerId",
+    {
+    },
+      "doc": "Nom du jeu"
+      "type": "string",
+      "name": "gameName",
+    {
+    },
+      "doc": "Identifiant du jeu"
+      "type": "string",
+      "name": "gameId",
+    {
+    },
+      "doc": "Identifiant unique de la session"
+      "type": "string",
+      "name": "sessionId",
+    {
+  "fields": [
+  "doc": "Événement émis lors d'une session de jeu d'un joueur",
+  "name": "GameSessionEvent",
+  "namespace": "org.steamproject.events",
+  "type": "record",
+

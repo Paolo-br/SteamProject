@@ -1,0 +1,56 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "NewRatingEvent",
+  "doc": "Événement émis lorsqu'un joueur évalue un jeu",
+  "fields": [
+    {
+      "name": "gameId",
+      "type": "string",
+      "doc": "Identifiant du jeu évalué"
+    },
+    {
+      "name": "gameName",
+      "type": "string",
+      "doc": "Nom du jeu"
+    },
+    {
+      "name": "playerId",
+      "type": "string",
+      "doc": "Identifiant du joueur"
+    },
+    {
+      "name": "playerUsername",
+      "type": "string",
+      "doc": "Nom d'utilisateur du joueur"
+    },
+    {
+      "name": "rating",
+      "type": "int",
+      "doc": "Note donnée (1-5 étoiles)"
+    },
+    {
+      "name": "comment",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Commentaire optionnel"
+    },
+    {
+      "name": "playtime",
+      "type": "int",
+      "doc": "Temps de jeu total en heures"
+    },
+    {
+      "name": "isRecommended",
+      "type": "boolean",
+      "doc": "Le joueur recommande-t-il le jeu ?"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "default": 0,
+      "doc": "Timestamp de l'événement"
+    }
+  ]
+}
+
