@@ -1,0 +1,59 @@
+{
+  "type": "record",
+  "doc": "Événement émis lorsqu'un nouveau jeu est publié sur la plateforme",
+  "name": "GameReleasedEvent",
+  "namespace": "org.steamproject.events",
+  "fields": [  
+    {
+      "doc": "Timestamp de l'événement (millisecondes depuis epoch)",
+      "default": 0,
+      "type": "long",
+      "name": "timestamp"
+    },
+    {
+      "doc": "Version initiale (ex: 1.0.0)",
+      "type": "string",
+      "name": "initialVersion"
+    },
+    {
+      "doc": "Année de sortie",
+      "type": "int",
+      "name": "releaseYear"
+    },
+    {
+      "doc": "Prix de lancement",
+      "type": "double",
+      "name": "initialPrice"
+    },
+    {
+      "doc": "Genre du jeu (Action, RPG, etc.)",
+      "type": "string",
+      "name": "genre"
+    },
+    {
+      "doc": "Plateforme de jeu (PC, PS4, Xbox, etc.)",
+      "type": "string",
+      "name": "platform"
+    },
+    {
+      "doc": "Nom de l'éditeur",
+      "type": "string",
+      "name": "publisherName"
+    },
+    {
+      "doc": "Identifiant de l'éditeur",
+      "type": "string",
+      "name": "publisherId"
+    },
+    {
+      "doc": "Nom du jeu",
+      "type": "string",
+      "name": "gameName"
+    },
+    {
+      "doc": "Identifiant unique du jeu",
+      "type": "string",
+      "name": "gameId"
+    }
+  ]
+}
