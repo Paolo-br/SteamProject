@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,11 +25,9 @@ import org.example.ui.viewmodel.UiState
 /**
  * Écran Incidents & Crashs
  *
- * Fonctionnalités :
+ * Version front-only :
  * - Affichage des incidents par jeu
- * - Statistiques agrégées
- * - Mise à jour temps réel via Kafka
- * - Alertes critiques
+ * - Statistiques agrégées basées sur les données mock
  */
 @Composable
 fun IncidentsCrashsScreen(
@@ -41,7 +38,6 @@ fun IncidentsCrashsScreen(
 
     // 2. Récupération de l'état
     val uiState by viewModel.uiState
-    val realtimeEvents by viewModel.realtimeEvents
 
     // 3. Nettoyage à la sortie
     DisposableEffect(Unit) {
@@ -75,18 +71,6 @@ fun IncidentsCrashsScreen(
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.weight(1f))
-            if (realtimeEvents.isNotEmpty()) {
-                Badge(
-                    backgroundColor = MaterialTheme.colors.error,
-                    modifier = Modifier.padding(8.dp)
-                ) {
-                    Text(
-                        text = "${realtimeEvents.size} nouveaux",
-                        color = Color.White,
-                        fontSize = 12.sp
-                    )
-                }
-            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -114,12 +98,6 @@ fun IncidentsCrashsScreen(
                 IncidentStatisticsSection(data.statistics)
 
                 Spacer(modifier = Modifier.height(24.dp))
-
-                // Alertes temps réel
-                if (realtimeEvents.isNotEmpty()) {
-                    RealtimeAlertsSection(realtimeEvents)
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
 
                 // Tableau des incidents
                 IncidentsTableSection(data.gameIncidents)
@@ -188,66 +166,6 @@ private fun StatCard(
                 fontWeight = FontWeight.Bold,
                 color = color
             )
-        }
-    }
-}
-
-@Composable
-private fun RealtimeAlertsSection(events: List<org.example.model.IncidentAggregatedEvent>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = 2.dp,
-        backgroundColor = Color(0xFFFFF3E0)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = "Alertes",
-                    tint = Color(0xFFFF9800)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "🔴 Alertes en temps réel (Kafka)",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFE65100)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            events.take(5).forEach { event ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = event.gameName,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "${event.platform} - ${event.incidentCount} incidents",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
-                    }
-                    Text(
-                        text = "Gravité: ${String.format("%.1f", event.averageSeverity)}",
-                        fontSize = 12.sp,
-                        color = Color(0xFFE65100)
-                    )
-                }
-                Divider()
-            }
         }
     }
 }
@@ -407,4 +325,3 @@ private fun IncidentRow(incident: org.example.ui.viewmodel.GameIncidents) {
         }
     }
 }
-

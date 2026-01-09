@@ -27,26 +27,7 @@ dependencies {
     // KotlinX Serialization JSON
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
-    // Ktor Client
-    implementation("io.ktor:ktor-client-core:2.3.9")
-    implementation("io.ktor:ktor-client-cio:2.3.9")
-    implementation("io.ktor:ktor-client-content-negotiation:2.3.9")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.9")
-
-    // Kafka Client
-    implementation("org.apache.kafka:kafka-clients:3.7.0")
-
     testImplementation(kotlin("test"))
-
-    // NOTE: Ne pas inclure directement les artefacts AndroidX destinés à Android
-    // (ex: "androidx.compose.*") dans un projet Compose Desktop —
-    // ils ne sont pas nécessaires et peuvent causer des conflits ou des références non résolues.
-    // Le plugin org.jetbrains.compose fournit déjà les artefacts nécessaires via
-    // `compose.desktop.currentOs`.
-
-    // Si vous avez besoin d'artefacts supplémentaires multiplatform, utilisez
-    // les coordonnées fournies par le plugin ou ajoutez explicitement les
-    // dépendances multiplateformes appropriées.
 }
 
 tasks.test {

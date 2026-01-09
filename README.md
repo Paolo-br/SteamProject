@@ -1,6 +1,6 @@
 # 🎮 Steam Project - Plateforme de Gestion de Jeux Vidéo
 
-> **Projet académique 4A - JVM & Data Streaming**  
+> **Projet académique 4A - JVM & Data Streaming**
 > Architecture Event-Driven avec Kafka, Avro, et Compose Desktop
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-blue.svg)](https://kotlinlang.org/)
@@ -412,4 +412,5 @@ Projet académique - École d'Ingénieurs - 2026
 **🎉 Le projet avance bien ! 15 schémas Avro créés, frontend complet, infrastructure en cours.**
 
 👉 Consulter [`QUICK_RECAP.md`](QUICK_RECAP.md) pour l'état détaillé.
+
 

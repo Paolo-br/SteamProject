@@ -3,7 +3,6 @@ package org.example.ui.viewmodel
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.example.model.Patch
 import org.example.services.ServiceLocator
@@ -11,11 +10,9 @@ import org.example.services.ServiceLocator
 /**
  * ViewModel pour l'écran Patchs.
  *
- * Responsabilités :
- * - Charger l'historique des patchs
- * - Écouter les nouveaux patchs en temps réel (Kafka)
- * - Gérer la sélection d'un patch
- * - Mettre à jour automatiquement l'UI
+ * Version front-only :
+ * - Charge l'historique des patchs via MockDataService
+ * - Ne dépend plus d'événements temps réel Kafka
  */
 class PatchesViewModel : BaseViewModel() {
 
@@ -37,7 +34,6 @@ class PatchesViewModel : BaseViewModel() {
 
     init {
         loadPatches()
-        observePatchEvents()
     }
 
     /**
@@ -58,21 +54,6 @@ class PatchesViewModel : BaseViewModel() {
     }
 
     /**
-     * Écoute les nouveaux patchs en temps réel (Kafka).
-     */
-    private fun observePatchEvents() {
-        viewModelScope.launch {
-            val kafkaService = ServiceLocator.kafkaService
-
-            kafkaService.patchEvents.collectLatest { event ->
-                println("🆕 Nouveau patch reçu: ${event.gameName} ${event.newVersion}")
-                // Recharger les patchs pour afficher le nouveau
-                loadPatches()
-            }
-        }
-    }
-
-    /**
      * Sélectionne un patch.
      */
     fun selectPatch(patchId: String?) {
@@ -86,4 +67,3 @@ class PatchesViewModel : BaseViewModel() {
         loadPatches()
     }
 }
-

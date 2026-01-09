@@ -3,7 +3,6 @@ package org.example.ui.viewmodel
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.example.model.Game
 import org.example.services.ServiceLocator
@@ -11,11 +10,10 @@ import org.example.services.ServiceLocator
 /**
  * ViewModel pour l'écran Catalogue.
  *
- * Responsabilités :
- * - Charger le catalogue de jeux
- * - Gérer la recherche/filtrage
- * - Exposer l'état de chargement et d'erreur
- * - Écouter les changements de prix (Kafka)
+ * Version front-only :
+ * - Charge le catalogue de jeux via MockDataService
+ * - Gère la recherche/filtrage
+ * - Ne dépend plus d'événements temps réel Kafka
  */
 class CatalogViewModel : BaseViewModel() {
 
@@ -55,7 +53,6 @@ class CatalogViewModel : BaseViewModel() {
 
     init {
         loadCatalog()
-        observePriceUpdates()
     }
 
     /**
@@ -71,21 +68,6 @@ class CatalogViewModel : BaseViewModel() {
                 _uiState.value = UiState.Success(catalog)
             } catch (e: Exception) {
                 _uiState.value = UiState.Error("Erreur de chargement: ${e.message}")
-            }
-        }
-    }
-
-    /**
-     * Écoute les changements de prix en temps réel (Kafka).
-     */
-    private fun observePriceUpdates() {
-        viewModelScope.launch {
-            val kafkaService = ServiceLocator.kafkaService
-
-            kafkaService.priceEvents.collectLatest { event ->
-                println("Prix mis à jour: ${event.gameName} ${event.oldPrice}€ → ${event.newPrice}€")
-                // Recharger le catalogue pour avoir les nouveaux prix
-                loadCatalog()
             }
         }
     }
@@ -119,4 +101,3 @@ class CatalogViewModel : BaseViewModel() {
         loadCatalog()
     }
 }
-
