@@ -70,22 +70,4 @@ public class GameDataService {
                 .filter(g -> g.getName() != null && g.getName().toLowerCase().contains(q))
                 .collect(Collectors.toList());
     }
-
-    public List<Game> topNByGlobalSales(int n) {
-        ensureLoaded();
-        if (n <= 0) return Collections.emptyList();
-        return cache.stream()
-                .sorted(Comparator.comparingDouble(g -> - (g.getGlobalSales() == null ? 0.0 : g.getGlobalSales())))
-                .limit(n)
-                .collect(Collectors.toList());
-    }
-
-    public List<Game> paginate(int page, int pageSize) {
-        ensureLoaded();
-        if (pageSize <= 0 || page < 0) return Collections.emptyList();
-        int from = page * pageSize;
-        if (from >= cache.size()) return Collections.emptyList();
-        int to = Math.min(from + pageSize, cache.size());
-        return new ArrayList<>(cache.subList(from, to));
-    }
 }

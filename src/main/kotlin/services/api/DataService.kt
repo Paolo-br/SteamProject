@@ -92,5 +92,22 @@ interface DataService {
      * Récupère le prix actuel d'un jeu.
      */
     suspend fun getPrice(gameId: String): Double?
+    
+    // ========== UTILITAIRES / FILTRAGE ==========
+
+    /**
+     * Filtre les jeux par année. Si `year` est null retourne tout le catalogue.
+     */
+    suspend fun filterByYear(year: Int?): List<Game>
+
+    /**
+     * Filtre les jeux par genre (sous-chaîne, insensible à la casse).
+     * Si `genre` est null ou vide retourne tout le catalogue.
+     */
+    suspend fun filterByGenre(genre: String?): List<Game>
+
+    /**
+     * Retourne les `n` jeux ayant les plus grandes ventes globales.
+     */
 }
 

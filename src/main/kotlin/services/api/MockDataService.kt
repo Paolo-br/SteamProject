@@ -23,6 +23,11 @@ class MockDataService : DataService {
     override suspend fun addRating(gameId: String, rating: Rating): Boolean = false
     override suspend fun getPrice(gameId: String): Double? = null
 
+    // Implement new methods with safe defaults
+    override suspend fun filterByYear(year: Int?): List<Game> = emptyList()
+    override suspend fun filterByGenre(genre: String?): List<Game> = emptyList()
+    // topNByGlobalSales and paginate removed per UI requirements
+
     // Lightweight dynamic methods used by tests or FakeKafkaService (optional)
     fun addPatch(patch: Patch) {}
     fun updatePrice(gameId: String, newPrice: Double) {}

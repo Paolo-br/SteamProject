@@ -85,4 +85,13 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
     override suspend fun getRatings(gameId: String): List<Rating> = emptyList()
     override suspend fun addRating(gameId: String, rating: Rating): Boolean = false
     override suspend fun getPrice(gameId: String): Double? = null
+
+    override suspend fun filterByYear(year: Int?): List<Game> = withContext(Dispatchers.IO) {
+        javaService.filterByYear(year).map { map(it) }
+    }
+
+    override suspend fun filterByGenre(genre: String?): List<Game> = withContext(Dispatchers.IO) {
+        javaService.filterByGenre(genre).map { map(it) }
+    }
+
 }

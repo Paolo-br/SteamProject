@@ -24,6 +24,10 @@ object ServiceLocator {
         override suspend fun getRatings(gameId: String): List<Rating> = emptyList()
         override suspend fun addRating(gameId: String, rating: Rating) = false
         override suspend fun getPrice(gameId: String) = null
+
+        // New methods default implementations
+        override suspend fun filterByYear(year: Int?): List<Game> = emptyList()
+        override suspend fun filterByGenre(genre: String?): List<Game> = emptyList()
     }
 
     /** Préfère le service Java-backed si disponible. */

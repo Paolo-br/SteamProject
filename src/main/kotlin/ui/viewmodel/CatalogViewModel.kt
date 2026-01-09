@@ -55,6 +55,7 @@ class CatalogViewModel : BaseViewModel() {
         loadCatalog()
     }
 
+
     /**
      * Charge le catalogue de jeux.
      */
@@ -77,6 +78,36 @@ class CatalogViewModel : BaseViewModel() {
      */
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    /**
+     * Filtre par année (nullable) en remplaçant l'état UI par le résultat.
+     */
+    fun filterByYear(year: Int?) {
+        viewModelScope.launch {
+            _uiState.value = UiState.Loading
+            try {
+                val result = ServiceLocator.dataService.filterByYear(year)
+                _uiState.value = UiState.Success(result)
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error("Erreur de filtrage par année: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Filtre par genre (nullable).
+     */
+    fun filterByGenre(genre: String?) {
+        viewModelScope.launch {
+            _uiState.value = UiState.Loading
+            try {
+                val result = ServiceLocator.dataService.filterByGenre(genre)
+                _uiState.value = UiState.Success(result)
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error("Erreur de filtrage par genre: ${e.message}")
+            }
+        }
     }
 
     /**

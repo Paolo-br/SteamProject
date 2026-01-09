@@ -98,6 +98,40 @@ fun CatalogScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // Contrôles rapides : filtre année / genre
+        var yearText by remember { mutableStateOf("") }
+        var genreText by remember { mutableStateOf("") }
+
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextField(
+                value = yearText,
+                onValueChange = { yearText = it },
+                label = { Text("Année") },
+                modifier = Modifier.width(120.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = {
+                val y = yearText.toIntOrNull()
+                viewModel.filterByYear(y)
+            }) { Text("Filtrer année") }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            TextField(
+                value = genreText,
+                onValueChange = { genreText = it },
+                label = { Text("Genre") },
+                modifier = Modifier.width(160.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = { viewModel.filterByGenre(genreText.ifBlank { null }) }) { Text("Filtrer genre") }
+
+            Spacer(modifier = Modifier.weight(1f))
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        
+
         // Indicateur de chargement ou erreur
         when {
             isLoading -> {
