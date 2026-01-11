@@ -7,6 +7,10 @@ import androidx.compose.material.Divider
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import org.example.services.ServiceLocator
+import org.example.model.Player
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -42,30 +46,37 @@ fun PlayerStatistics(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Grid de 4 statistiques principales
+        // Charger les joueurs via le DataService Java-backed (si présent)
+        val playersState by produceState<List<Player>?>(initialValue = null) {
+            value = try {
+                ServiceLocator.dataService.getPlayers()
+            } catch (_: Exception) { null }
+        }
+
+        val players = playersState ?: emptyList()
+
+        val joueursActifs = players.size
+
+        val tempsMoyen: String = players.mapNotNull { it.totalPlaytime }
+            .takeIf { it.isNotEmpty() }
+            ?.let { vals -> (vals.sum().toDouble() / vals.size).let { "${it.toInt()} h" } }
+            ?: "-"
+
+        val jeuxMoyens: String = if (players.isEmpty()) "-" else String.format("%.1f", players.map { it.library.size }.average())
+
+        val evaluationsMoyennes: String = players.mapNotNull { it.evaluationsCount }
+            .takeIf { it.isNotEmpty() }
+            ?.let { vals -> String.format("%.1f", vals.average()) }
+            ?: "-"
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            StatisticCard(
-                title = "Joueurs actifs",
-                modifier = Modifier.weight(1f)
-            )
-
-            StatisticCard(
-                title = "Temps moyen/joueur",
-                modifier = Modifier.weight(1f)
-            )
-
-            StatisticCard(
-                title = "Jeux moyens/joueur",
-                modifier = Modifier.weight(1f)
-            )
-
-            StatisticCard(
-                title = "Évaluations/mois",
-                modifier = Modifier.weight(1f)
-            )
+            StatisticCard(title = "Joueurs actifs", value = joueursActifs.toString(), modifier = Modifier.weight(1f))
+            StatisticCard(title = "Temps moyen/joueur", value = tempsMoyen, modifier = Modifier.weight(1f))
+            StatisticCard(title = "Jeux moyens/joueur", value = jeuxMoyens, modifier = Modifier.weight(1f))
+            StatisticCard(title = "Évaluations/mois", value = evaluationsMoyennes, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -73,6 +84,7 @@ fun PlayerStatistics(
 @Composable
 private fun StatisticCard(
     title: String,
+    value: String = "-",
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -91,21 +103,10 @@ private fun StatisticCard(
             fontWeight = FontWeight.Medium
         )
 
-        // Placeholder pour la valeur principale
-        Box(
-            modifier = Modifier
-                .width(100.dp)
-                .height(32.dp)
-                .background(Color(0xFFE0E0E0))
-        )
+        // Valeur principale
+        Text(text = value, style = MaterialTheme.typography.h6)
 
-        // Placeholder pour une sous-information
-        Box(
-            modifier = Modifier
-                .width(80.dp)
-                .height(16.dp)
-                .background(Color(0xFFE8E8E8))
-        )
+        
     }
 }
 

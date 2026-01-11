@@ -38,6 +38,8 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
 
     testImplementation(kotlin("test"))
+    // Data faker for generating fake players/publishers in Java service
+    implementation("net.datafaker:datafaker:1.7.0")
 }
 
 // Configuration du plugin Avro : (utilise la valeur par défaut du plugin)

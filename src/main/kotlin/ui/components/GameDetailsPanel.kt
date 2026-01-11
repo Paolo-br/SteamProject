@@ -103,15 +103,40 @@ private fun GeneralInfoTab(game: Game) {
             .padding(vertical = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Colonne gauche
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            InfoItem(label = "Plateforme", value = game.platform ?: "N/A")
-            InfoItem(label = "Version actuelle", value = game.currentVersion ?: "N/A")
-            InfoItem(label = "Nombre d'incidents", value = game.incidentCount?.toString() ?: "N/A")
-        }
+            // Colonne gauche
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                InfoItem(label = "Plateforme", value = game.platform ?: "N/A")
+                InfoItem(label = "Année", value = game.releaseYear?.toString() ?: "N/A")
+                InfoItem(label = "Nombre d'incidents", value = game.incidentCount?.toString() ?: "N/A")
+
+                // Note moyenne (déplacée sous le nombre d'incidents)
+                Column {
+                    Text(
+                        text = "Note moyenne",
+                        style = MaterialTheme.typography.body2,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFFFB300),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = game.averageRating?.let { String.format("%.1f / 5", it) } ?: "N/A",
+                            style = MaterialTheme.typography.h6
+                        )
+                    }
+                }
+            }
 
         Spacer(modifier = Modifier.width(48.dp))
 
@@ -122,30 +147,32 @@ private fun GeneralInfoTab(game: Game) {
         ) {
             InfoItem(label = "Genre", value = game.genre ?: "N/A")
 
-            // Note moyenne avec étoiles
+            InfoItem(label = "Éditeur", value = game.publisherName ?: "N/A")
+
+            // Ventes régionales
             Column {
                 Text(
-                    text = "Note moyenne",
+                    text = "Ventes (M)",
                     style = MaterialTheme.typography.body2,
                     color = Color.Gray,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Star,
-                        contentDescription = null,
-                        tint = Color(0xFFFFB300),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        text = game.averageRating?.let { String.format("%.1f / 5", it) } ?: "N/A",
-                        style = MaterialTheme.typography.h6
-                    )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    InfoItem(label = "NA_Sales", value = String.format("%.2f", game.salesNA ?: 0.0))
+                    InfoItem(label = "EU_Sales", value = String.format("%.2f", game.salesEU ?: 0.0))
+                    InfoItem(label = "JP_Sales", value = String.format("%.2f", game.salesJP ?: 0.0))
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    InfoItem(label = "Other_Sales", value = String.format("%.2f", game.salesOther ?: 0.0))
+                    InfoItem(label = "Global_Sales", value = String.format("%.2f", game.salesGlobal ?: 0.0))
                 }
             }
+
+            // (Note déplacée sous le nombre d'incidents)
         }
     }
 }

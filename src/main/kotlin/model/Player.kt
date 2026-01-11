@@ -9,9 +9,9 @@ data class Player(
     val email: String,
     val registrationDate: String,
     val library: List<GameOwnership> = emptyList(),
-    val totalPlaytime: Int = 0, // en heures
+    val totalPlaytime: Int? = null, // en heures, rempli via Kafka
     val lastEvaluationDate: String? = null,
-    val evaluationsCount: Int = 0
+    val evaluationsCount: Int? = null
 )
 
 /**

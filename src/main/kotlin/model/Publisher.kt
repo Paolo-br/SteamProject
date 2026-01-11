@@ -11,8 +11,9 @@ data class Publisher(
     val genres: List<String> = emptyList(),
     val gamesPublished: Int = 0,
     val activeGames: Int = 0,
-    val totalIncidents: Int = 0,
-    val averageRating: Double? = null
+    val totalIncidents: Int? = null,
+    val averageRating: Double? = null,
+    val reactivity: Int? = null
 )
 
 

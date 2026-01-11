@@ -3,15 +3,21 @@ package org.example.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.material.Divider
+import androidx.compose.material.Card
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.example.model.Publisher
 
 /**
  * Tableau principal affichant la liste des editeurs.
@@ -21,30 +27,50 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun EditorTable(
     modifier: Modifier = Modifier,
+    publishers: List<Publisher> = emptyList(),
     onEditorSelected: ((String?) -> Unit)? = null
 ) {
-    Column(
+    Card(
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, Color.LightGray)
-            .background(Color.White)
+            .height(320.dp),
+        elevation = 2.dp
     ) {
-        EditorTableHeader()
+        Column {
+            EditorTableHeader()
+            Divider()
 
-        Divider(color = Color.LightGray, thickness = 1.dp)
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(300.dp)
-                .background(Color(0xFFFAFAFA)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "En attente des donnees...",
-                style = MaterialTheme.typography.body1,
-                color = Color.Gray
-            )
+            if (publishers.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFFFAFAFA)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "En attente des donnees...", style = MaterialTheme.typography.body2, color = Color.Gray)
+                }
+            } else {
+                LazyColumn {
+                    items(publishers) { pub ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onEditorSelected?.invoke(pub.id) }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = pub.name ?: "-", modifier = Modifier.weight(0.25f))
+                            Text(text = pub.gamesPublished.toString(), modifier = Modifier.weight(0.15f))
+                            Text(text = pub.totalIncidents?.toString() ?: "-", modifier = Modifier.weight(0.15f))
+                            Text(text = "-", modifier = Modifier.weight(0.15f))
+                            Text(text = pub.averageRating?.toString() ?: "-", modifier = Modifier.weight(0.15f))
+                            val react = pub.reactivity?.let { "${it}%" } ?: "-"
+                            Text(text = react, modifier = Modifier.weight(0.15f))
+                        }
+                        Divider(color = Color(0xFFEFEFEF))
+                    }
+                }
+            }
         }
     }
 }

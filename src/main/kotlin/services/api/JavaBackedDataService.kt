@@ -4,7 +4,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.example.model.*
 import org.steamproject.model.Game as JavaGame
+import org.steamproject.model.Player as JavaPlayer
+import org.steamproject.model.Publisher as JavaPublisher
 import org.steamproject.service.GameDataService
+import org.steamproject.service.PublisherService
+import org.steamproject.service.PlayerService
 import java.nio.charset.StandardCharsets
 import java.util.*
 
@@ -16,6 +20,36 @@ import java.util.*
 class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.csv") : DataService {
 
     private val javaService = GameDataService(resourcePath)
+    private val publisherService = PublisherService(resourcePath)
+    private val playerService = PlayerService()
+
+    private fun mapPublisher(javaPub: JavaPublisher): Publisher {
+        return Publisher(
+            id = javaPub.getId() ?: javaPub.getName().lowercase().replace(" ", "_"),
+            name = javaPub.getName(),
+            foundedYear = javaPub.getFoundedYear(),
+            platforms = javaPub.getPlatforms() ?: emptyList(),
+            genres = javaPub.getGenres() ?: emptyList(),
+            gamesPublished = javaPub.getGamesPublished() ?: 0,
+            activeGames = javaPub.getActiveGames() ?: 0,
+            totalIncidents = javaPub.getTotalIncidents(),
+            averageRating = javaPub.getAverageRating(),
+            reactivity = javaPub.getReactivity()
+        )
+    }
+
+    private fun mapPlayer(javaPlayer: JavaPlayer): Player {
+        return Player(
+            id = javaPlayer.getId(),
+            username = javaPlayer.getUsername() ?: "",
+            email = javaPlayer.getEmail() ?: "",
+            registrationDate = javaPlayer.getRegistrationDate() ?: "",
+            library = emptyList(),
+            totalPlaytime = javaPlayer.getTotalPlaytime(),
+            lastEvaluationDate = javaPlayer.getLastEvaluationDate(),
+            evaluationsCount = javaPlayer.getEvaluationsCount()
+        )
+    }
 
     private fun map(javaGame: JavaGame): Game {
         val publisherId = javaGame.getPublisher() ?: ""
@@ -68,17 +102,20 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
     }
 
     override suspend fun getPublishers(): List<Publisher> = withContext(Dispatchers.IO) {
-        javaService.getAll().mapNotNull { g ->
-            g.getPublisher() ?: null
-        }.distinct().map { name -> Publisher(id = name.lowercase().replace(" ", "_"), name = name) }
+        publisherService.getAllPublishers().map { mapPublisher(it) }
     }
 
     override suspend fun getPublisher(publisherId: String): Publisher? = withContext(Dispatchers.IO) {
         getPublishers().firstOrNull { it.id == publisherId }
     }
 
-    override suspend fun getPlayers(): List<Player> = emptyList()
-    override suspend fun getPlayer(playerId: String): Player? = null
+    override suspend fun getPlayers(): List<Player> = withContext(Dispatchers.IO) {
+        playerService.getAllPlayers().map { mapPlayer(it) }
+    }
+
+    override suspend fun getPlayer(playerId: String): Player? = withContext(Dispatchers.IO) {
+        playerService.getPlayerById(playerId)?.let { mapPlayer(it) }
+    }
     override suspend fun getAllPatches(): List<Patch> = emptyList()
     override suspend fun getPatchesByGame(gameId: String): List<Patch> = emptyList()
     override suspend fun getRecentPatches(limit: Int): List<Patch> = emptyList()

@@ -158,7 +158,7 @@ private fun GameInfoSection(data: org.example.ui.viewmodel.GameDetailData) {
                 InfoItem("Plateforme", data.game.platform ?: "N/A")
                 InfoItem("Genre", data.game.genre ?: "N/A")
                 InfoItem("Année", data.game.releaseYear?.toString() ?: "N/A")
-                InfoItem("Version", data.game.currentVersion ?: "N/A")
+                InfoItem("Éditeur", data.publisher?.name ?: "N/A")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -214,14 +214,30 @@ private fun GameInfoSection(data: org.example.ui.viewmodel.GameDetailData) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Ventes par région: NA, EU, JP, Other (calculé), Global
+                val na = data.game.salesNA ?: 0.0
+                val eu = data.game.salesEU ?: 0.0
+                val jp = data.game.salesJP ?: 0.0
+                val global = data.game.salesGlobal ?: 0.0
+                val other = maxOf(0.0, global - (na + eu + jp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    SalesItem("Global", data.game.salesGlobal, Modifier.weight(1f))
-                    SalesItem("NA", data.game.salesNA, Modifier.weight(1f))
-                    SalesItem("EU", data.game.salesEU, Modifier.weight(1f))
-                    SalesItem("JP", data.game.salesJP, Modifier.weight(1f))
+                    SalesItem("NA_Sales", na, Modifier.weight(1f))
+                    SalesItem("EU_Sales", eu, Modifier.weight(1f))
+                    SalesItem("JP_Sales", jp, Modifier.weight(1f))
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SalesItem("Other_Sales", other, Modifier.weight(1f))
+                    SalesItem("Global_Sales", global, Modifier.weight(1f))
                 }
             }
         }

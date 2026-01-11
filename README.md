@@ -1,35 +1,5 @@
 # 🎮 Steam Project - Plateforme de Gestion de Jeux Vidéo
 
-> **Projet académique 4A - JVM & Data Streaming**
-> Architecture Event-Driven avec Kafka, Avro, et Compose Desktop
-
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-blue.svg)](https://kotlinlang.org/)
-[![Compose](https://img.shields.io/badge/Compose%20Desktop-1.6.11-green.svg)](https://www.jetbrains.com/lp/compose-desktop/)
-[![Kafka](https://img.shields.io/badge/Kafka-3.7.0-red.svg)](https://kafka.apache.org/)
-[![Avro](https://img.shields.io/badge/Avro-1.11.3-orange.svg)](https://avro.apache.org/)
-
----
-
-## 📋 Vue d'ensemble
-
-Application complète de gestion de plateforme de jeux vidéo (type Steam) avec :
-- 🎨 **Frontend** : Interface desktop moderne en Compose
-- 📊 **Event Streaming** : Architecture événementielle avec Kafka
-- 💾 **Persistance** : Agrégation de données en temps réel
-- 📈 **Analytics** : Tendances, statistiques, et alertes
-
----
-
-## 🚀 Démarrage Rapide
-
-### 📖 Documentation
-👉 **START ICI** : [`QUICK_RECAP.md`](QUICK_RECAP.md) - Récapitulatif en 3 points
-
-**Guides complets** :
-- 📚 [`INDEX.md`](INDEX.md) - Navigation dans toute la documentation
-- 📋 [`PROJECT_RECAP.md`](PROJECT_RECAP.md) - État complet du projet
-- 📘 [`PABLO_SUMMARY.md`](PABLO_SUMMARY.md) - Schémas Avro (pour équipe)
-
 ### 🏃 Lancer le projet
 
 #### Frontend (Compose Desktop)
@@ -46,156 +16,6 @@ docker-compose up -d
 # Vérifier les services
 docker-compose ps
 ```
-
----
-
-## 🏗️ Architecture
-
-```
-┌──────────────────┐
-│  Frontend (UI)   │  Compose Desktop - 8 écrans
-└────────┬─────────┘
-         │ HTTP REST
-         ↓
-┌──────────────────┐
-│   Backend API    │  Expose données agrégées
-└────────┬─────────┘
-         │
-         ↓
-┌──────────────────┐
-│    Postgres DB   │  Stockage persistant
-└────────┬─────────┘
-         ↑
-┌────────┴─────────┐
-│  Consommateurs   │  7 Aggregators (Kafka Streams)
-└────────┬─────────┘
-         ↑
-┌────────┴─────────┐
-│   Kafka Topics   │  12 topics événementiels
-└────────┬─────────┘
-         ↑
-┌────────┴─────────┐
-│   Producteurs    │  3 micro-services
-└──────────────────┘
-```
-
-**Plus de détails** : [`PABLO_VISUAL_GUIDE.md`](PABLO_VISUAL_GUIDE.md)
-
----
-
-## 📊 État du Projet
-
-### ✅ Fait (100%)
-- [x] Frontend Compose Desktop (8 écrans, 25+ composants)
-- [x] Modèles de données Kotlin (15 événements)
-- [x] Schémas Avro (12 events + 3 models)
-- [x] Documentation complète
-- [x] Configuration Docker
-
-### 🚧 En Cours
-- [ ] Infrastructure Kafka (Raphaël)
-- [ ] Publication Schema Registry (Pablo + Raphaël)
-
-### ⏳ À Faire
-- [ ] Producteurs Kafka (Julien)
-- [ ] Consommateurs & Kafka Streams (Anas)
-- [ ] Backend REST API
-- [ ] Intégration Frontend ↔ Backend
-
----
-
-## 👥 Équipe
-
-| Membre | Rôle | Responsabilités |
-|--------|------|-----------------|
-| **Raphaël** | Architecte Kafka | Infrastructure Kafka + Schema Registry |
-| **Pablo** | Modélisation | Schémas Avro (✅ Fait) |
-| **Julien** | Producteurs | Micro-services émetteurs + VGSales |
-| **Anas** | Consommateurs | Aggregators + Kafka Streams + Persistance |
-
-**Voir besoins détaillés** : [`QUICK_RECAP.md`](QUICK_RECAP.md)
-
----
-
-## 📁 Structure du Projet
-
-```
-SteamProject/
-├── 📖 README.md                   Ce fichier
-├── 📖 INDEX.md                    Navigation documentation
-├── 📖 QUICK_RECAP.md              Récap rapide (START ICI)
-├── 📋 PROJECT_RECAP.md            État complet
-│
-├── 📘 PABLO_SUMMARY.md            Guide Pablo (schémas)
-├── 📘 PABLO_SCHEMAS_GUIDE.md      Guide détaillé schémas
-├── 📘 PABLO_VISUAL_GUIDE.md       Guide visuel + exemples
-│
-├── schemas/                       ⭐ Schémas Avro
-│   ├── events/                    12 événements Kafka
-│   │   ├── game-released.avsc
-│   │   ├── patch-published.avsc
-│   │   ├── new-rating.avsc
-│   │   └── ... (9 autres)
-│   ├── models/                    3 modèles de données
-│   │   ├── game.avsc
-│   │   ├── player.avsc
-│   │   └── publisher.avsc
-│   └── README.md
-│
-├── src/main/kotlin/
-│   ├── Main.kt                    Point d'entrée
-│   ├── model/                     Modèles Kotlin
-│   │   ├── Events.kt              15 événements
-│   │   ├── Game.kt
-│   │   ├── Player.kt
-│   │   └── ...
-│   ├── ui/
-│   │   ├── screens/               8 écrans
-│   │   ├── components/            25+ composants
-│   │   └── viewmodel/             ViewModels MVVM
-│   └── services/                  ServiceLocator + Mocks
-│
-├── docker-compose.yml             Infrastructure
-├── build.gradle.kts               Configuration Gradle
-└── ...
-```
-
----
-
-## 🎨 Frontend - Écrans Disponibles
-
-| Écran | Description | Statut |
-|-------|-------------|--------|
-| 🏠 **Home** | Dashboard KPIs + Activité temps réel | ✅ |
-| 📚 **Catalog** | Catalogue jeux avec recherche/filtres | ✅ |
-| 🎮 **Game Detail** | Détails complets d'un jeu | ✅ |
-| ⭐ **Ratings** | Évaluations et notes joueurs | ✅ |
-| 🔧 **Patches** | Historique mises à jour | ✅ |
-| 💥 **Incidents** | Rapports crashs et incidents | ✅ |
-| 👤 **Players** | Profils et statistiques joueurs | ✅ |
-| 🏢 **Editors** | Profils éditeurs et leurs jeux | ✅ |
-
----
-
-## 📊 Événements Kafka
-
-### 📤 Produits par les micro-services (9)
-- `GameReleasedEvent` - Nouveau jeu publié
-- `PatchPublishedEvent` - Patch déployé
-- `PriceUpdateEvent` - Changement de prix
-- `NewRatingEvent` - Évaluation joueur
-- `GamePurchaseEvent` - Achat d'un jeu
-- `GameSessionEvent` - Session de jeu
-- `CrashReportEvent` - Crash/incident
-- `PlayerPeakEvent` - Pic de joueurs
-- `PublisherActivityEvent` - Activité éditeur
-
-### 📥 Produits par les aggregators (3)
-- `GameTrendingEvent` - Tendance détectée
-- `SalesMilestoneEvent` - Palier de ventes
-- `IncidentAggregatedEvent` - Stats incidents
-
-**Détails** : [`schemas/README.md`](schemas/README.md)
 
 ---
 
@@ -218,60 +38,6 @@ SteamProject/
 - **Gradle** 8.5 (Kotlin DSL)
 - **Docker** & Docker Compose
 - **Java** 21 (JVM Target)
-
----
-
-## 📚 Documentation
-
-### 🌟 Pour Démarrer
-- [`QUICK_RECAP.md`](QUICK_RECAP.md) - Récap en 3 points (5 min)
-- [`INDEX.md`](INDEX.md) - Navigation complète
-
-### 📘 Guides Techniques
-- [`PABLO_SUMMARY.md`](PABLO_SUMMARY.md) - Schémas Avro + Besoins équipe
-- [`PABLO_VISUAL_GUIDE.md`](PABLO_VISUAL_GUIDE.md) - Architecture + Exemples code
-- [`PABLO_SCHEMAS_GUIDE.md`](PABLO_SCHEMAS_GUIDE.md) - Référence complète schémas
-- [`schemas/README.md`](schemas/README.md) - Documentation schémas .avsc
-
-### 📋 Gestion de Projet
-- [`PROJECT_RECAP.md`](PROJECT_RECAP.md) - État complet du projet
-
----
-
-## 🚀 Workflow Développement
-
-### 1️⃣ Infrastructure (Raphaël)
-```bash
-# Lancer Kafka + Schema Registry
-docker-compose up -d kafka schema-registry
-
-# Créer les topics
-# (Voir PABLO_SUMMARY.md pour la liste)
-```
-
-### 2️⃣ Schémas Avro (Pablo + Raphaël)
-```bash
-# Publier les schémas dans Schema Registry
-# (Scripts à venir)
-```
-
-### 3️⃣ Producteurs (Julien)
-```kotlin
-// Générer les classes Avro
-./gradlew generateAvroJava
-
-// Implémenter les services émetteurs
-// (Voir PABLO_VISUAL_GUIDE.md pour exemples)
-```
-
-### 4️⃣ Consommateurs (Anas)
-```kotlin
-// Générer les classes Avro
-./gradlew generateAvroJava
-
-// Implémenter les aggregators
-// (Voir PABLO_VISUAL_GUIDE.md pour exemples)
-```
 
 ---
 
@@ -339,6 +105,43 @@ docker-compose down -v
 
 ---
 
+## 🧩 Exécution du build via Docker 
+
+- But: fournir une façon reproductible de compiler le projet (artefacts) sans installer Gradle/Java localement.
+- Remarque importante: l'application est une **Compose Desktop** (interface graphique). Docker ne permet pas d'afficher directement l'UI sur Windows sans configuration spécifique (X server / VNC). Voir "Caveats GUI" ci-dessous.
+
+1) Construire les artefacts (via Docker Compose)
+
+```bash
+# Lance un conteneur Gradle qui compile le projet et copie le dossier `build` dans `./docker-build-output`
+docker-compose run --rm builder
+```
+
+2) Récupérer l'artefact
+
+- Les fichiers compilés seront disponibles localement dans `./docker-build-output/build`.
+- Exemple: lancer le JAR (si un JAR exécutable est produit) :
+
+```bash
+# depuis la racine du projet (ou depuis docker-build-output/build/libs)
+java -jar docker-build-output/build/libs/<nom-du-jar>.jar
+```
+
+3) Alternatives et caveats GUI
+
+- Pour le développement quotidien et pour exécuter l'interface graphique, il est **préférable** que vos collègues lancent l'application localement avec Gradle :
+
+```bash
+./gradlew run
+```
+
+- Si vous voulez tenter d'exécuter l'UI depuis un conteneur Docker (avancé) :
+    - Sous Linux : vous pouvez mapper le serveur X (ex. `-e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix`) et démarrer le conteneur avec OpenJDK. Cela nécessite que l'hôte autorise la connexion X (ex. `xhost +local:docker`).
+    - Sous Windows : utilisez WSL2 + un serveur X (VcXsrv, Xming) ou configurez une image avec VNC/noVNC — solution plus lourde et à réserver si nécessaire.
+
+Résumé : le `docker-compose run --rm builder` aide vos collègues à **compiler** de manière reproductible. Pour afficher l'UI, préférez `./gradlew run` localement ou suivez les solutions avancées X11/VNC.
+
+
 ## 📖 Ressources
 
 ### Documentation officielle
@@ -353,33 +156,7 @@ docker-compose down -v
 - [Avro Tutorial](https://avro.apache.org/docs/current/gettingstartedjava.html)
 - [Compose Desktop Tutorial](https://github.com/JetBrains/compose-jb/tree/master/tutorials)
 
----
-
-## 🤝 Contribution
-
-### Workflow Git (suggéré)
-```bash
-# Branches par fonctionnalité
-git checkout -b feature/nom-fonctionnalite
-
-# Commit avec convention
-git commit -m "feat: description de la feature"
-git commit -m "fix: correction du bug X"
-git commit -m "docs: mise à jour documentation"
-
-# Push et PR
-git push origin feature/nom-fonctionnalite
-```
-
-### Convention de commits
-- `feat:` Nouvelle fonctionnalité
-- `fix:` Correction de bug
-- `docs:` Documentation
-- `refactor:` Refactoring
-- `test:` Tests
-- `chore:` Tâches diverses
-
----
+--- 
 
 ## 📝 License
 
@@ -406,11 +183,5 @@ Projet académique - École d'Ingénieurs - 2026
 ![Status](https://img.shields.io/badge/Consommateurs-0%25-red)
 
 **Dernière mise à jour** : 7 janvier 2026
-
----
-
-**🎉 Le projet avance bien ! 15 schémas Avro créés, frontend complet, infrastructure en cours.**
-
-👉 Consulter [`QUICK_RECAP.md`](QUICK_RECAP.md) pour l'état détaillé.
 
 

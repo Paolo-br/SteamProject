@@ -78,6 +78,7 @@ fun PlayersScreen(
             // Tableau principal des joueurs
             PlayerTable(
                 modifier = Modifier.fillMaxWidth(),
+                players = viewModel.players,
                 onPlayerSelected = { playerId: String? ->
                     viewModel.selectPlayer(playerId)
                 }

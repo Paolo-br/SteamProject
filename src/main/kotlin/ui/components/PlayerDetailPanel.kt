@@ -11,17 +11,20 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.example.model.Player
+import org.example.services.ServiceLocator
 
 /**
  * Panneau de détail du profil joueur.
- * Affiche un placeholder lorsqu'aucun joueur n'est sélectionné.
- * Prêt pour afficher les informations détaillées d'un joueur sélectionné.
+ * Charge le `Player` via `ServiceLocator` et affiche les informations basiques.
  */
 @Composable
 fun PlayerDetailPanel(
@@ -43,18 +46,56 @@ fun PlayerDetailPanel(
 
         Divider(color = Color.LightGray, thickness = 1.dp)
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         if (selectedPlayerId == null) {
-            // État vide - Placeholder
             PlayerDetailPlaceholder()
         } else {
-            // Zone pour afficher les détails du joueur sélectionné
-            // À implémenter avec les données backend
-            Text(
-                text = "Détails du joueur $selectedPlayerId",
-                color = Color.Gray
-            )
+            val playerState by produceState<Player?>(initialValue = null, selectedPlayerId) {
+                value = try {
+                    ServiceLocator.dataService.getPlayer(selectedPlayerId!!)
+                } catch (_: Exception) { null }
+            }
+
+            if (playerState == null) {
+                Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    Text(text = "Chargement...", color = Color.Gray)
+                }
+            } else {
+                PlayerDetailContent(playerState!!)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerDetailContent(player: Player) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFEEEEEE)), contentAlignment = Alignment.Center) {
+                Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = Color.Gray)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(text = player.username, style = MaterialTheme.typography.h6)
+                Text(text = player.email ?: "-", style = MaterialTheme.typography.body2, color = Color.Gray)
+            }
+        }
+
+        DetailRow("Inscription:", player.registrationDate ?: "-")
+        DetailRow("Jeux possédés:", (player.library.size).toString())
+        DetailRow("Temps de jeu:", player.totalPlaytime?.toString()?.plus(" h") ?: "-")
+        DetailRow("Dernière évaluation:", player.lastEvaluationDate ?: "-")
+        DetailRow("Nombre évaluations:", player.evaluationsCount?.toString() ?: "-")
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(text = "Historique des jeux (extrait)", style = MaterialTheme.typography.subtitle2, color = Color.DarkGray)
+        Spacer(modifier = Modifier.height(4.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            player.library.take(4).forEach {
+                Text(text = "• ${it.gameName} (${it.playtime}h)")
+            }
+            if (player.library.isEmpty()) Text(text = "Aucun jeu dans la bibliothèque", color = Color.Gray)
         }
     }
 }
@@ -64,115 +105,22 @@ private fun PlayerDetailPlaceholder() {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = "Sélectionnez un joueur",
-            style = MaterialTheme.typography.subtitle1,
-            fontWeight = FontWeight.Medium,
-            color = Color.Gray
-        )
-
-        Text(
-            text = "Profil public",
-            style = MaterialTheme.typography.caption,
-            color = Color.LightGray
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Sections d'informations vides
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            InfoSection("Date d'inscription")
-            InfoSection("Jeux possédés")
-        }
-
+        Text(text = "Sélectionnez un joueur", style = MaterialTheme.typography.subtitle1, color = Color.Gray)
         Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            InfoSection("Temps de jeu total")
-            InfoSection("Évaluations")
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Section dernières évaluations
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Dernières évaluations",
-                style = MaterialTheme.typography.subtitle2,
-                fontWeight = FontWeight.Bold,
-                color = Color.DarkGray
-            )
-
-            // Placeholders pour évaluations
-            repeat(2) {
-                ReviewPlaceholder()
-            }
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            DetailRow("Inscription:", "-")
+            DetailRow("Jeux:", "-")
         }
     }
 }
 
 @Composable
-private fun InfoSection(label: String) {
-    Column(
-        horizontalAlignment = Alignment.Start
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.caption,
-            color = Color.Gray
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .width(80.dp)
-                .height(20.dp)
-                .background(Color(0xFFF0F0F0))
-        )
-    }
-}
-
-@Composable
-private fun ReviewPlaceholder() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFFAFAFA))
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(
-                modifier = Modifier
-                    .width(120.dp)
-                    .height(14.dp)
-                    .background(Color(0xFFE0E0E0))
-            )
-            Box(
-                modifier = Modifier
-                    .width(80.dp)
-                    .height(12.dp)
-                    .background(Color(0xFFE8E8E8))
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .width(60.dp)
-                .height(16.dp)
-                .background(Color(0xFFE0E0E0))
-        )
+private fun DetailRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(text = label, modifier = Modifier.width(140.dp), color = Color.Gray)
+        Text(text = value)
     }
 }
 

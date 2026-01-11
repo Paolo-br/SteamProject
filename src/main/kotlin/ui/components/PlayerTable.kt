@@ -3,10 +3,15 @@ package org.example.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
+import androidx.compose.material.Card
 import androidx.compose.material.Divider
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import org.example.model.Player
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,31 +28,43 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun PlayerTable(
     modifier: Modifier = Modifier,
+    players: List<Player> = emptyList(),
     onPlayerSelected: ((String?) -> Unit)? = null
 ) {
-    Column(
+    Card(
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, Color.LightGray)
-            .background(Color.White)
+            .height(320.dp),
+        elevation = 2.dp
     ) {
-        PlayerTableHeader()
+        Column {
+            PlayerTableHeader()
+            Divider()
 
-        Divider(color = Color.LightGray, thickness = 1.dp)
-
-        // Zone vide en attente des données
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(350.dp)
-                .background(Color(0xFFFAFAFA)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "En attente des données joueurs...",
-                style = MaterialTheme.typography.body1,
-                color = Color.Gray
-            )
+            if (players.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize().background(Color(0xFFFAFAFA)), contentAlignment = Alignment.Center) {
+                    Text(text = "En attente des données joueurs...", style = MaterialTheme.typography.body2, color = Color.Gray)
+                }
+            } else {
+                LazyColumn {
+                    items(players) { player ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPlayerSelected?.invoke(player.id) }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = player.username, modifier = Modifier.weight(0.20f))
+                            Text(text = player.registrationDate ?: "-", modifier = Modifier.weight(0.20f))
+                            Text(text = (player.library.size).toString(), modifier = Modifier.weight(0.15f))
+                            Text(text = player.totalPlaytime?.toString()?.plus("h") ?: "-", modifier = Modifier.weight(0.20f))
+                            Text(text = player.lastEvaluationDate ?: "-", modifier = Modifier.weight(0.25f))
+                        }
+                        Divider(color = Color(0xFFEFEFEF))
+                    }
+                }
+            }
         }
     }
 }

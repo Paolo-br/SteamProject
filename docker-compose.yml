@@ -1,1 +1,10 @@
+version: "3.8"
+services:
+  builder:
+    image: gradle:8.4-jdk17
+    working_dir: /home/gradle/project
+    volumes:
+      - ./:/home/gradle/project
+      - ./docker-build-output:/out
+    command: bash -c "./gradlew clean build -x test --no-daemon && cp -r build /out/"
 

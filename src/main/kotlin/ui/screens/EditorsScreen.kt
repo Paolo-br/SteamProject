@@ -78,6 +78,7 @@ fun EditorsScreen(
         } else {
             EditorTable(
                 modifier = Modifier.fillMaxWidth(),
+                publishers = viewModel.publishers,
                 onEditorSelected = { editorId: String? ->
                     viewModel.selectEditor(editorId)
                 }
