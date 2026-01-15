@@ -56,6 +56,12 @@ public class GameIngestion {
         g.setJpSales(parseDoubleSafe(safe(cols, 7)));
         g.setOtherSales(parseDoubleSafe(safe(cols, 8)));
         g.setGlobalSales(parseDoubleSafe(safe(cols, 9)));
+        try {
+            String key = (g.getName() == null ? "" : g.getName()) + "|" + (g.getPlatform() == null ? "" : g.getPlatform());
+            java.util.UUID id = java.util.UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8));
+            g.setId(id.toString());
+        } catch (Exception ex) {
+        }
         return g;
     }
 

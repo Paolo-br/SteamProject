@@ -8,8 +8,12 @@ public class Player {
     private Integer totalPlaytime;
     private String lastEvaluationDate;
     private Integer evaluationsCount;
+    private java.util.List<GameOwnership> library;
 
     public Player() {}
+
+    public java.util.List<GameOwnership> getLibrary() { return library; }
+    public void setLibrary(java.util.List<GameOwnership> library) { this.library = library; }
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }

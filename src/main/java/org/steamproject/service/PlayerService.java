@@ -12,7 +12,14 @@ public class PlayerService {
     private volatile List<Player> cache;
 
     public PlayerService() {
-        this.generator = new PlayerGenerator();
+        // initialize generator with available games so generated players can own games
+        java.util.List<org.steamproject.model.Game> games;
+        try {
+            games = new GameDataService().getAll();
+        } catch (Exception ex) {
+            games = java.util.Collections.emptyList();
+        }
+        this.generator = new PlayerGenerator(new java.util.Random(), games);
     }
 
     public PlayerService(PlayerGenerator generator) {

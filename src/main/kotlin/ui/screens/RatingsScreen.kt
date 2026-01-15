@@ -197,7 +197,7 @@ private fun RatingDistributionSection(distribution: Map<Int, Int>) {
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            val maxCount = distribution.values.maxOrNull() ?: 1
+            val maxCount = (distribution.values.maxOrNull() ?: 1).coerceAtLeast(1)
 
             (5 downTo 1).forEach { stars ->
                 val count = distribution[stars] ?: 0

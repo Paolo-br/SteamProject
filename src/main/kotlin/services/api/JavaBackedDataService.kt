@@ -44,7 +44,16 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
             username = javaPlayer.getUsername() ?: "",
             email = javaPlayer.getEmail() ?: "",
             registrationDate = javaPlayer.getRegistrationDate() ?: "",
-            library = emptyList(),
+            library = javaPlayer.getLibrary()?.map {
+                GameOwnership(
+                    gameId = it.getGameId(),
+                    gameName = it.getGameName(),
+                    purchaseDate = it.getPurchaseDate(),
+                    playtime = it.getPlaytime() ?: 0,
+                    lastPlayed = it.getLastPlayed(),
+                    pricePaid = it.getPricePaid() ?: 0.0
+                )
+            } ?: emptyList(),
             totalPlaytime = javaPlayer.getTotalPlaytime(),
             lastEvaluationDate = javaPlayer.getLastEvaluationDate(),
             evaluationsCount = javaPlayer.getEvaluationsCount()
