@@ -2,7 +2,6 @@ package org.example.model
 
 /**
  * Modèle de données pour un jeu.
- * Sera rempli par les données du backend.
  */
 data class Game(
     val id: String,
@@ -46,11 +45,31 @@ data class Incident(
 
 /**
  * Modèle pour une évaluation.
+ * Inclut le système de votes d'utilité.
  */
 data class Rating(
+    val id: String? = null,          // Identifiant unique de l'évaluation
     val username: String,
-    val rating: Int, // 1-5
+    val playerId: String? = null,    // ID du joueur ayant évalué
+    val rating: Int,                 // 1-5 étoiles
     val comment: String,
-    val date: String
-)
+    val date: String,
+    val playtime: Int = 0,           // Temps de jeu au moment de l'évaluation (heures)
+    val isRecommended: Boolean = true, // Le joueur recommande-t-il le jeu ?
+    // === Votes d'utilité ===
+    val helpfulVotes: Int = 0,       // Nombre de votes "utile"
+    val notHelpfulVotes: Int = 0,    // Nombre de votes "pas utile"
+    val votedByPlayerIds: List<String> = emptyList() // IDs des joueurs ayant voté
+) {
+    /** Score d'utilité calculé (% de votes positifs) */
+    val helpfulnessScore: Double
+        get() = if (totalVotes > 0) (helpfulVotes.toDouble() / totalVotes) * 100 else 0.0
+    
+    /** Nombre total de votes */
+    val totalVotes: Int
+        get() = helpfulVotes + notHelpfulVotes
+    
+    /** Vérifie si un joueur a déjà voté sur cette évaluation */
+    fun hasVoted(playerId: String): Boolean = votedByPlayerIds.contains(playerId)
+}
 

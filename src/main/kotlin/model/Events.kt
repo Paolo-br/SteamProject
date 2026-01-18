@@ -55,7 +55,6 @@ data class IncidentAggregatedEvent(
     val timestamp: Long = System.currentTimeMillis()
 )
 
-// ========== NOUVEAUX ÉVÉNEMENTS ==========
 
 /**
  * Événement de nouvelle évaluation (rating) par un joueur.

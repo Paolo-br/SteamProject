@@ -2,6 +2,7 @@ package org.example.services
 
 import org.example.services.api.DataService
 import org.example.services.api.JavaBackedDataService
+import org.example.services.api.MockDataService
 import org.example.model.*
 
 /**
@@ -9,26 +10,7 @@ import org.example.model.*
  */
 object ServiceLocator {
     /** Service de données de secours (retourne des listes vides). */
-    private val mockDataService: DataService = object : DataService {
-        override suspend fun getCatalog(): List<Game> = emptyList()
-        override suspend fun getGame(gameId: String) = null
-        override suspend fun searchGames(query: String): List<Game> = emptyList()
-        override suspend fun getGamesByPublisher(publisherId: String): List<Game> = emptyList()
-        override suspend fun getPublishers(): List<Publisher> = emptyList()
-        override suspend fun getPublisher(publisherId: String): Publisher? = null
-        override suspend fun getPlayers(): List<Player> = emptyList()
-        override suspend fun getPlayer(playerId: String): Player? = null
-        override suspend fun getAllPatches(): List<Patch> = emptyList()
-        override suspend fun getPatchesByGame(gameId: String): List<Patch> = emptyList()
-        override suspend fun getRecentPatches(limit: Int): List<Patch> = emptyList()
-        override suspend fun getRatings(gameId: String): List<Rating> = emptyList()
-        override suspend fun addRating(gameId: String, rating: Rating) = false
-        override suspend fun getPrice(gameId: String) = null
-
-        // New methods default implementations
-        override suspend fun filterByYear(year: Int?): List<Game> = emptyList()
-        override suspend fun filterByGenre(genre: String?): List<Game> = emptyList()
-    }
+    private val mockDataService: DataService = MockDataService()
 
     /** Préfère le service Java-backed si disponible. */
     private val javaBacked: DataService? = try {

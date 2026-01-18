@@ -54,7 +54,8 @@ fun App() {
         )
 
         is Screen.Catalog -> CatalogScreen(
-            onBack = { navigationState.navigateBack() }
+            onBack = { navigationState.navigateBack() },
+            onNavigate = { navigationState.navigateTo(it) }
         )
 
         is Screen.Editors -> EditorsScreen(
@@ -81,6 +82,21 @@ fun App() {
         is Screen.GameDetail -> GameDetailScreen(
             gameId = screen.gameId,
             onBack = { navigationState.navigateBack() }
+        )
+
+        is Screen.Platforms -> PlatformsScreen(
+            onBack = { navigationState.navigateBack() },
+            navigationState = navigationState
+        )
+
+        is Screen.DLC -> DLCScreen(
+            onBack = { navigationState.navigateBack() },
+            navigationState = navigationState
+        )
+
+        is Screen.Purchases -> PurchasesScreen(
+            onBack = { navigationState.navigateBack() },
+            navigationState = navigationState
         )
     }
 }

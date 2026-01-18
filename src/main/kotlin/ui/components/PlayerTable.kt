@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
  * Structure vide prête pour l'intégration backend.
  * Affiche uniquement les en-têtes de colonnes.
  *
- * Colonnes : Pseudo, Date d'inscription, Jeux possédés, Temps de jeu total, Dernière évaluation
+ * Colonnes : Pseudo, Prénom, Nom, Email, Inscription, Naissance, Consentement, Jeux possédés, Dernière évaluation
  */
 @Composable
 fun PlayerTable(
@@ -55,11 +55,15 @@ fun PlayerTable(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = player.username, modifier = Modifier.weight(0.20f))
-                            Text(text = player.registrationDate ?: "-", modifier = Modifier.weight(0.20f))
-                            Text(text = (player.library.size).toString(), modifier = Modifier.weight(0.15f))
-                            Text(text = player.totalPlaytime?.toString()?.plus("h") ?: "-", modifier = Modifier.weight(0.20f))
-                            Text(text = player.lastEvaluationDate ?: "-", modifier = Modifier.weight(0.25f))
+                            Text(text = player.username, modifier = Modifier.weight(0.16f))
+                            Text(text = player.firstName ?: "-", modifier = Modifier.weight(0.12f))
+                            Text(text = player.lastName ?: "-", modifier = Modifier.weight(0.12f))
+                            Text(text = player.email ?: "-", modifier = Modifier.weight(0.20f))
+                            Text(text = player.registrationDate ?: "-", modifier = Modifier.weight(0.12f))
+                            Text(text = player.dateOfBirth ?: "-", modifier = Modifier.weight(0.12f))
+                            Text(text = if (player.gdprConsent) "Oui" else "Non", modifier = Modifier.weight(0.08f))
+                            Text(text = (player.library.size).toString(), modifier = Modifier.weight(0.08f))
+                            Text(text = player.lastEvaluationDate ?: "-", modifier = Modifier.weight(0.12f))
                         }
                         Divider(color = Color(0xFFEFEFEF))
                     }
@@ -79,11 +83,15 @@ private fun PlayerTableHeader() {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TableHeaderCell("Pseudo", weight = 0.20f)
-        TableHeaderCell("Date d'inscription", weight = 0.20f)
-        TableHeaderCell("Jeux possédés", weight = 0.15f)
-        TableHeaderCell("Temps de jeu total", weight = 0.20f)
-        TableHeaderCell("Dernière évaluation", weight = 0.25f)
+        TableHeaderCell("Pseudo", weight = 0.16f)
+        TableHeaderCell("Prénom", weight = 0.12f)
+        TableHeaderCell("Nom", weight = 0.12f)
+        TableHeaderCell("Email", weight = 0.20f)
+        TableHeaderCell("Inscription", weight = 0.12f)
+        TableHeaderCell("Naissance", weight = 0.12f)
+        TableHeaderCell("Consent.", weight = 0.08f)
+        TableHeaderCell("Jeux", weight = 0.08f)
+        TableHeaderCell("Dernière éval.", weight = 0.12f)
     }
 }
 

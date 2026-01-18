@@ -70,4 +70,41 @@ public class GameDataService {
                 .filter(g -> g.getName() != null && g.getName().toLowerCase().contains(q))
                 .collect(Collectors.toList());
     }
+
+    /**
+     * Récupère un jeu par son ID.
+     */
+    public Game getById(String gameId) {
+        ensureLoaded();
+        if (gameId == null) return null;
+        return cache.stream()
+                .filter(g -> gameId.equals(g.getId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Récupère les jeux par plateforme.
+     */
+    public List<Game> filterByPlatform(String platform) {
+        ensureLoaded();
+        if (platform == null || platform.trim().isEmpty()) return getAll();
+        String p = platform.trim();
+        return cache.stream()
+                .filter(g -> g.getPlatform() != null && g.getPlatform().equalsIgnoreCase(p))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Récupère la liste des plateformes distinctes.
+     */
+    public List<String> getPlatforms() {
+        ensureLoaded();
+        return cache.stream()
+                .map(Game::getPlatform)
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
 }

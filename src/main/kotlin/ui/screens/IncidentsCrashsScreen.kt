@@ -25,7 +25,6 @@ import org.example.ui.viewmodel.UiState
 /**
  * Écran Incidents & Crashs
  *
- * Version front-only :
  * - Affichage des incidents par jeu
  * - Statistiques agrégées basées sur les données mock
  */

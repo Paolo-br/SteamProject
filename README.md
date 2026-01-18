@@ -1,187 +1,78 @@
 # 🎮 Steam Project - Plateforme de Gestion de Jeux Vidéo
 
 ### 🏃 Lancer le projet
+# Steam Project — Guide d'installation et lancement (pas-à-pas)
 
-#### Frontend (Compose Desktop)
+Ce document explique comment configurer une machine de développement et lancer l'interface graphique (Compose Desktop) ainsi que l'infrastructure dépendante (Kafka, Schema Registry, Postgres).
+
+Prérequis rapides
+- Git (pour cloner le dépôt)
+- Java 21 (JDK) — obligatoire pour compiler et exécuter
+- Docker & Docker Compose (pour lancer Kafka / Schema Registry / Postgres localement)
+- Windows: utilisez `gradlew.bat`; Unix/macOS: `./gradlew`
+
+Table des matières
+- **Installation JDK**
+- **Cloner le projet**
+- **Vérifications rapides**
+- **Démarrer l'infrastructure Docker**
+- **Lancer l'interface (dev)**
+- **Construire un artefact**
+- **Dépannage & conseils**
+- **CI / Distribution (suggestions)**
+
+1) Installation JDK 21
+-- Vérifier la version installée:
 ```bash
-# Compiler et lancer l'interface
-./gradlew run
+java -version
+```
+-- Vous devez voir `java 21` ou équivalent. Si non installé :
+- Windows: installer Temurin/Adoptium, Azul ou Oracle JDK 21 et définir `JAVA_HOME`.
+- macOS: `brew install --cask temurin` ou installer via l'installateur officiel.
+- Linux: utiliser votre gestionnaire de paquets ou SDKMAN (`sdk install java 21-open`).
+
+2) Cloner le dépôt
+```bash
+git clone <url-du-repo>
+cd <nom-du-repo>
 ```
 
-#### Infrastructure (Docker)
+3) Vérifications rapides dans le repo
+- Vérifier la présence du wrapper Gradle (`gradlew`, `gradlew.bat`) et du fichier `build.gradle.kts`.
+- Confirmer le point d'entrée de l'application: `src/main/kotlin/Main.kt` (mainClass = `org.example.MainKt`).
+
+4) Démarrer l'infrastructure 
+- Démarrer les services Docker requis (Kafka, Schema Registry, Postgres):
 ```bash
-# Lancer Kafka + Schema Registry + Postgres
 docker-compose up -d
-
-# Vérifier les services
 docker-compose ps
 ```
+- Vérifier que les ports sont ouverts (`9092` pour Kafka, `8081` pour Schema Registry, `5432` pour Postgres).
 
----
 
-## 🛠️ Technologies
-
-### Frontend
-- **Kotlin** 2.0.21
-- **Compose Desktop** 1.6.11
-- **Kotlinx Coroutines** 1.8.1
-- **Kotlinx Serialization** 1.7.3
-- **Ktor Client** 2.3.9
-
-### Backend & Streaming
-- **Apache Kafka** 3.7.0
-- **Apache Avro** 1.11.3
-- **Confluent Schema Registry** 7.5.0
-- **PostgreSQL** (via Docker)
-
-### Build & Infra
-- **Gradle** 8.5 (Kotlin DSL)
-- **Docker** & Docker Compose
-- **Java** 21 (JVM Target)
-
----
-
-## 🧪 Tests
-
+5) Lancer l'interface en mode développement
+- Sur Windows (PowerShell):
+```powershell
+# depuis la racine du projet
+.\\gradlew.bat run
+```
+- Sur macOS / Linux:
 ```bash
-# Tests unitaires
-./gradlew test
-
-# Lancer le frontend en mode dev
 ./gradlew run
-
-# Vérifier les services Docker
-docker-compose ps
-docker-compose logs -f kafka
 ```
+- Le wrapper Gradle télécharge les dépendances et compile le projet automatiquement (pas besoin d'installer Gradle globalement).
 
----
-
-## 📦 Build & Packaging
-
+6) Construire un artefact exécutable
+- Build standard (JAR + tests):
 ```bash
-# Compiler le projet
 ./gradlew build
-
-# Créer le JAR
-./gradlew jar
-
-# Build distributable (Windows MSI)
-./gradlew packageMsi
-
-# Build distributable (Linux DEB)
-./gradlew packageDeb
-
-# Build distributable (macOS DMG)
-./gradlew packageDmg
 ```
-
----
-
-## 🐳 Docker
-
-### Services disponibles
-```yaml
-- kafka:9092           # Kafka broker
-- zookeeper:2181       # Kafka Zookeeper
-- schema-registry:8081 # Confluent Schema Registry
-- postgres:5432        # PostgreSQL
-```
-
-### Commandes utiles
-```bash
-# Lancer tous les services
-docker-compose up -d
-
-# Voir les logs
-docker-compose logs -f
-
-# Arrêter les services
-docker-compose down
-
-# Supprimer les volumes (ATTENTION: perte de données)
-docker-compose down -v
-```
-
----
-
-## 🧩 Exécution du build via Docker 
-
-- But: fournir une façon reproductible de compiler le projet (artefacts) sans installer Gradle/Java localement.
-- Remarque importante: l'application est une **Compose Desktop** (interface graphique). Docker ne permet pas d'afficher directement l'UI sur Windows sans configuration spécifique (X server / VNC). Voir "Caveats GUI" ci-dessous.
-
-1) Construire les artefacts (via Docker Compose)
-
-```bash
-# Lance un conteneur Gradle qui compile le projet et copie le dossier `build` dans `./docker-build-output`
-docker-compose run --rm builder
-```
-
-2) Récupérer l'artefact
-
-- Les fichiers compilés seront disponibles localement dans `./docker-build-output/build`.
-- Exemple: lancer le JAR (si un JAR exécutable est produit) :
-
-```bash
-# depuis la racine du projet (ou depuis docker-build-output/build/libs)
-java -jar docker-build-output/build/libs/<nom-du-jar>.jar
-```
-
-3) Alternatives et caveats GUI
-
-- Pour le développement quotidien et pour exécuter l'interface graphique, il est **préférable** que vos collègues lancent l'application localement avec Gradle :
-
-```bash
-./gradlew run
-```
-
-- Si vous voulez tenter d'exécuter l'UI depuis un conteneur Docker (avancé) :
-    - Sous Linux : vous pouvez mapper le serveur X (ex. `-e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix`) et démarrer le conteneur avec OpenJDK. Cela nécessite que l'hôte autorise la connexion X (ex. `xhost +local:docker`).
-    - Sous Windows : utilisez WSL2 + un serveur X (VcXsrv, Xming) ou configurez une image avec VNC/noVNC — solution plus lourde et à réserver si nécessaire.
-
-Résumé : le `docker-compose run --rm builder` aide vos collègues à **compiler** de manière reproductible. Pour afficher l'UI, préférez `./gradlew run` localement ou suivez les solutions avancées X11/VNC.
+7) Dépannage courant
+- Erreur "Unsupported class file major version" → mauvaise version de Java (installer JDK 21).
+- Build bloqué sur le téléchargement de dépendances → vérifier connexion réseau / proxy et dépôts configurés dans `build.gradle.kts`.
+- Problèmes avec OneDrive (chemins synchronisés) → déplacer le projet hors de dossiers synchronisés (OneDrive) si vous obtenez des erreurs de fichier verrouillé.
+- Docker UI inaccessible depuis conteneur (Windows) → exécuter l'UI localement via `./gradlew run` ; exécution GUI dans Docker nécessite WSL2+X server ou VNC (non recommandée pour la majorité des utilisateurs).
 
 
-## 📖 Ressources
-
-### Documentation officielle
-- [Kotlin](https://kotlinlang.org/docs/)
-- [Compose Desktop](https://www.jetbrains.com/lp/compose-desktop/)
-- [Apache Kafka](https://kafka.apache.org/documentation/)
-- [Apache Avro](https://avro.apache.org/docs/current/)
-- [Confluent Platform](https://docs.confluent.io/)
-
-### Tutoriels
-- [Kafka Quickstart](https://kafka.apache.org/quickstart)
-- [Avro Tutorial](https://avro.apache.org/docs/current/gettingstartedjava.html)
-- [Compose Desktop Tutorial](https://github.com/JetBrains/compose-jb/tree/master/tutorials)
-
---- 
-
-## 📝 License
-
-Projet académique - École d'Ingénieurs - 2026
-
----
-
-## 📞 Contact
-
-**Équipe Projet** :
-- Raphaël (Kafka)
-- Pablo (Schémas Avro)
-- Julien (Producteurs)
-- Anas (Consommateurs)
-
----
-
-## ✨ Status
-
-![Status](https://img.shields.io/badge/Frontend-100%25-green)
-![Status](https://img.shields.io/badge/Schemas-100%25-green)
-![Status](https://img.shields.io/badge/Infrastructure-60%25-yellow)
-![Status](https://img.shields.io/badge/Producteurs-0%25-red)
-![Status](https://img.shields.io/badge/Consommateurs-0%25-red)
-
-**Dernière mise à jour** : 7 janvier 2026
 
 

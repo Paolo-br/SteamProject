@@ -208,7 +208,7 @@ private fun GameInfoSection(data: org.example.ui.viewmodel.GameDetailData) {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "📊 Statistiques de ventes",
+                    text = "Statistiques de ventes",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -225,9 +225,9 @@ private fun GameInfoSection(data: org.example.ui.viewmodel.GameDetailData) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    SalesItem("NA_Sales", na, Modifier.weight(1f))
-                    SalesItem("EU_Sales", eu, Modifier.weight(1f))
-                    SalesItem("JP_Sales", jp, Modifier.weight(1f))
+                    SalesItem("NA", na, Modifier.weight(1f))
+                    SalesItem("EU", eu, Modifier.weight(1f))
+                    SalesItem("JP", jp, Modifier.weight(1f))
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -236,8 +236,8 @@ private fun GameInfoSection(data: org.example.ui.viewmodel.GameDetailData) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    SalesItem("Other_Sales", other, Modifier.weight(1f))
-                    SalesItem("Global_Sales", global, Modifier.weight(1f))
+                    SalesItem("Other", other, Modifier.weight(1f))
+                    SalesItem("Global", global, Modifier.weight(1f))
                 }
             }
         }
@@ -297,7 +297,7 @@ private fun PriceCard(price: Double?, modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "💰 Prix",
+                text = "Prix",
                 fontSize = 14.sp,
                 color = Color.Gray
             )
@@ -323,7 +323,7 @@ private fun RatingCard(rating: Double, count: Int, modifier: Modifier = Modifier
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "⭐ Note moyenne",
+                text = "Note moyenne",
                 fontSize = 14.sp,
                 color = Color.Gray
             )
@@ -354,7 +354,7 @@ private fun IncidentCard(count: Int, modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "⚠️ Incidents",
+                text = "Incidents",
                 fontSize = 14.sp,
                 color = Color.Gray
             )
@@ -383,40 +383,46 @@ private fun VersionHistorySection(
         elevation = 2.dp,
         backgroundColor = Color.White
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = "🔢 Historique des versions",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (versions.isEmpty() && patches.isEmpty()) {
+                Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
                 Text(
-                    text = "Aucune information sur les versions",
-                    color = Color.Gray,
-                    fontSize = 14.sp
+                    text = "Historique des versions",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            } else {
-                // Afficher les patchs récents
-                patches.take(5).forEach { patch ->
-                    PatchItem(patch)
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
 
-                // Afficher les versions
-                if (versions.isNotEmpty()) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    versions.forEach { version ->
-                        VersionItem(version)
-                        Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (versions.isEmpty() && patches.isEmpty()) {
+                    Text(
+                        text = "Aucune information sur les versions",
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+                } else {
+                    Column(modifier = Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
+                        // Afficher les patchs récents
+                        if (patches.isNotEmpty()) {
+                            Text(text = "Patches récents", fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            patches.forEach { patch ->
+                                PatchItem(patch)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
+
+                        // Afficher les versions
+                        if (versions.isNotEmpty()) {
+                            Divider(modifier = Modifier.padding(vertical = 8.dp))
+                            versions.forEach { version ->
+                                VersionItem(version)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
                     }
                 }
             }
-        }
     }
 }
 
@@ -496,7 +502,7 @@ private fun IncidentsSection(incidents: List<org.example.model.Incident>, gameNa
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "⚠️ Historique des incidents",
+                text = "Historique des incidents",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -542,28 +548,31 @@ private fun RatingsSection(ratings: List<org.example.model.Rating>) {
         backgroundColor = Color.White
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+                modifier = Modifier.padding(16.dp)
+            ) {
             Text(
-                text = "⭐ Évaluations des joueurs",
+                text = "Évaluations des joueurs",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (ratings.isEmpty()) {
-                Text(
-                    text = "Aucune évaluation disponible",
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
-            } else {
-                ratings.take(5).forEach { rating ->
-                    RatingItem(rating)
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                if (ratings.isEmpty()) {
+                    Text(
+                        text = "Aucune évaluation disponible",
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+                } else {
+                    // Show all ratings inside a scrollable area with limited height
+                    Column(modifier = Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+                        ratings.forEach { rating ->
+                            RatingItem(rating)
+                            Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        }
+                    }
                 }
-            }
         }
     }
 }

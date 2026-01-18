@@ -20,7 +20,6 @@ import org.example.ui.viewmodel.EditorsViewModel
  * Architecture ViewModel :
  * - Gestion d'état centralisée dans EditorsViewModel
  * - Séparation UI / logique métier
- * - Prêt pour migration backend réelle
  */
 @Composable
 fun EditorsScreen(

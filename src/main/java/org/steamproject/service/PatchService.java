@@ -45,12 +45,50 @@ public class PatchService {
     }
 
     /**
-     * Génère et stocke des patchs pour tous les jeux d'un éditeur donné.
-     * Le mapping publisherId -> publisherName est effectué via `PublisherService`.
-     */
-    public List<Patch> generatePatchesForPublisher(String publisherId, int perGame) {
-        // Generation automatique non supportée sans attributs explicites.
-        // Use `createPatchForGameUsingPublisher(...)` to create patches with explicit attributes.
-        return Collections.emptyList();
+     * Crée un nouveau patch pour un jeu.
+    */
+    public synchronized Patch createPatchForGame(org.steamproject.model.Game game,
+                                                String oldVersion,
+                                                String newVersion,
+                                                PatchType type,
+                                                String description,
+                                                List<Change> changes,
+                                                Integer sizeInMB,
+                                                String releaseDate) {
+        if (game == null) return null;
+        Patch p = new Patch();
+        p.setId(java.util.UUID.randomUUID().toString());
+        p.setGameId(game.getId());
+        p.setGameName(game.getName());
+        p.setPlatform(game.getPlatform());
+        p.setOldVersion(oldVersion);
+        p.setNewVersion(newVersion);
+        p.setType(type);
+        p.setDescription(description);
+        if (changes != null) p.setChanges(List.copyOf(changes));
+        p.setSizeInMB(sizeInMB);
+        p.setReleaseDate(releaseDate);
+        p.setTimestamp(java.time.Instant.now().toEpochMilli());
+        store.add(p);
+        return p;
     }
+    
+    /**
+     * Crée un patch de correction simple avec une liste de descriptions.
+    */
+    public synchronized Patch createFixPatch(org.steamproject.model.Game game,
+                                             String oldVersion,
+                                             String newVersion,
+                                             List<String> fixDescriptions,
+                                             Integer sizeInMB,
+                                             String releaseDate) {
+        List<Change> changes = fixDescriptions.stream()
+            .map(Change::fix) // Utilisation de la méthode factory du record
+            .collect(Collectors.toList());
+        
+        return createPatchForGame(game, oldVersion, newVersion, 
+                                  PatchType.FIX, "Patch de correction", 
+                                  changes, sizeInMB, releaseDate);
+    }
+
 }

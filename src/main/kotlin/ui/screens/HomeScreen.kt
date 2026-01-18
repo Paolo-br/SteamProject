@@ -3,6 +3,8 @@ package org.example.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
@@ -20,7 +22,7 @@ import androidx.compose.ui.unit.sp
 import org.example.ui.navigation.Screen
 
 /**
- * Écran d'accueil - Navigation latérale comme dans l'image GameStream Analytics.
+ * Écran d'accueil
  */
 @Composable
 fun HomeScreen(
@@ -66,6 +68,7 @@ private fun Sidebar(
         modifier = Modifier
             .width(280.dp)
             .fillMaxHeight()
+            .verticalScroll(rememberScrollState())
             .background(Color(0xFFF5F5F5))
             .padding(16.dp)
     ) {
@@ -87,7 +90,7 @@ private fun Sidebar(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Menu items (comme dans l'image)
+        // Menu items
         MenuItem(
             icon = Icons.Default.PlayArrow,
             label = "Jeux",
@@ -122,6 +125,24 @@ private fun Sidebar(
             icon = Icons.Default.Build,
             label = "Correctifs / Patches",
             onClick = { onNavigate(Screen.Patches) }
+        )
+
+        MenuItem(
+            icon = Icons.Default.Phone,
+            label = "Par Plateforme",
+            onClick = { onNavigate(Screen.Platforms) }
+        )
+
+        MenuItem(
+            icon = Icons.Default.Add,
+            label = "DLC",
+            onClick = { onNavigate(Screen.DLC) }
+        )
+
+        MenuItem(
+            icon = Icons.Default.Check,
+            label = "Achats",
+            onClick = { onNavigate(Screen.Purchases) }
         )
     }
 }

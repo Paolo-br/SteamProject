@@ -13,4 +13,7 @@ sealed class Screen {
     data object Patches : Screen()
     data object Ratings : Screen()
     data object IncidentsCrashs : Screen()
-}
+    data object Platforms : Screen() 
+    data object DLC : Screen()        
+    data object Purchases : Screen()
+} 

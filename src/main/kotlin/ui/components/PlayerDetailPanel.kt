@@ -82,9 +82,17 @@ private fun PlayerDetailContent(player: Player) {
             }
         }
 
+        // Informations personnelles (RGPD)
+        DetailRow("Prénom:", player.firstName ?: "-")
+        DetailRow("Nom:", player.lastName ?: "-")
+        DetailRow("Date naissance:", player.dateOfBirth ?: "-")
+        DetailRow("Consentement RGPD:", if (player.gdprConsent) "Oui" else "Non")
+        DetailRow("Date consentement:", player.gdprConsentDate ?: "-")
+
+        // Statistiques & historique
         DetailRow("Inscription:", player.registrationDate ?: "-")
         DetailRow("Jeux possédés:", (player.library.size).toString())
-        DetailRow("Temps de jeu:", player.totalPlaytime?.toString()?.plus(" h") ?: "-")
+        DetailRow("Temps de jeu (total):", player.totalPlaytime?.toString()?.plus(" h") ?: "-")
         DetailRow("Dernière évaluation:", player.lastEvaluationDate ?: "-")
         DetailRow("Nombre évaluations:", player.evaluationsCount?.toString() ?: "-")
 
@@ -93,7 +101,8 @@ private fun PlayerDetailContent(player: Player) {
         Spacer(modifier = Modifier.height(4.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             player.library.take(4).forEach {
-                Text(text = "• ${it.gameName} (${it.playtime}h)")
+                val playDisplay = if (it.playtime > 0) "${it.playtime}h" else "-"
+                Text(text = "• ${it.gameName} ($playDisplay)")
             }
             if (player.library.isEmpty()) Text(text = "Aucun jeu dans la bibliothèque", color = Color.Gray)
         }

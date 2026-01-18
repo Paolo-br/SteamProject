@@ -19,12 +19,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.ui.components.SearchBar
-import org.example.ui.components.GameDetailsPanel
 import org.example.model.Game
 import org.example.ui.viewmodel.CatalogViewModel
 
 /**
- * Écran Catalogue avec tableau de jeux (style GameStream Analytics).
+ * Écran Catalogue avec tableau de jeux.
  *
  * Architecture ViewModel :
  * - CatalogViewModel gère l'état et le chargement
@@ -33,7 +32,8 @@ import org.example.ui.viewmodel.CatalogViewModel
  */
 @Composable
 fun CatalogScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigate: (org.example.ui.navigation.Screen) -> Unit
 ) {
     // 1. Initialisation du ViewModel
     val viewModel = remember { CatalogViewModel() }
@@ -45,13 +45,6 @@ fun CatalogScreen(
     val filteredGames by remember { derivedStateOf { viewModel.filteredGames } }
     val selectedGameId by viewModel.selectedGameId
     val selectedGame by remember { derivedStateOf { viewModel.selectedGame } }
-
-    // Sélectionner automatiquement le premier jeu si aucun n'est sélectionné
-    LaunchedEffect(filteredGames) {
-        if (filteredGames.isNotEmpty() && selectedGameId == null) {
-            viewModel.selectGame(filteredGames.first().id)
-        }
-    }
 
     // 3. Nettoyage à la sortie
     DisposableEffect(Unit) {
@@ -159,21 +152,16 @@ fun CatalogScreen(
                 }
             }
             else -> {
-                // Tableau de jeux
+                // Tableau de jeux — au clic on navigue vers l'écran de détails
                 GameTable(
                     games = filteredGames,
                     selectedGameId = selectedGameId,
                     onGameSelected = { gameId ->
-                        viewModel.selectGame(gameId)
+                        if (gameId != null) {
+                            onNavigate(org.example.ui.navigation.Screen.GameDetail(gameId))
+                        }
                     }
                 )
-
-                // Panel de détails (toujours affiché si des jeux existent)
-                if (filteredGames.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    val gameToDisplay = selectedGame ?: filteredGames.first()
-                    GameDetailsPanel(game = gameToDisplay)
-                }
             }
         }
     }
@@ -219,7 +207,7 @@ private fun GameTable(
                     }
                 }
             } else {
-                // Lignes du tableau (quand il y aura des données)
+                // Lignes du tableau
                 LazyColumn {
                     items(games) { game ->
                         TableRow(

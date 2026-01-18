@@ -32,8 +32,16 @@ public class PlayerGenerator {
             p.setUsername(faker.name().username());
             p.setEmail(faker.internet().emailAddress());
             p.setRegistrationDate(Instant.ofEpochMilli(faker.date().birthday().getTime()).toString());
+            
+            p.setFirstName(faker.name().firstName());
+            p.setLastName(faker.name().lastName());
+            p.setDateOfBirth(faker.date().birthday(18, 65).toInstant().toString());
+            p.setGdprConsent(true);  // Simuler consentement accepté
+            p.setGdprConsentDate(Instant.now().minusSeconds(random.nextInt(60*60*24*365)).toString());
 
-            // assign a random library from available games
+
+            // Utilisation du constructeur du record GameOwnership au lieu des setters,
+            // ce qui garantit l'immuabilité de l'objet dès sa création.
             java.util.List<org.steamproject.model.GameOwnership> lib = new ArrayList<>();
             if (!availableGames.isEmpty()) {
                 int ownedCount = random.nextInt(Math.min(10, availableGames.size()) + 1); // 0..10
@@ -43,7 +51,6 @@ public class PlayerGenerator {
                     do { idx = random.nextInt(availableGames.size()); } while (picks.contains(idx));
                     picks.add(idx);
                     org.steamproject.model.Game g = availableGames.get(idx);
-                    org.steamproject.model.GameOwnership go = new org.steamproject.model.GameOwnership();
                     // ensure game id exists (may be computed by ingestion)
                     String gid = g.getId();
                     if (gid == null) {
@@ -52,12 +59,15 @@ public class PlayerGenerator {
                             gid = java.util.UUID.nameUUIDFromBytes(key.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
                         } catch (Exception ex) { gid = UUID.randomUUID().toString(); }
                     }
-                    go.setGameId(gid);
-                    go.setGameName(g.getName());
-                    go.setPurchaseDate(Instant.now().minusSeconds(random.nextInt(60*60*24*365)).toString());
-                    go.setPlaytime(random.nextInt(500));
-                    go.setLastPlayed(null);
-                    go.setPricePaid(Math.round((random.nextDouble() * 60.0) * 100.0) / 100.0);
+                    // Création du GameOwnership via le constructeur du record (immuable)
+                    org.steamproject.model.GameOwnership go = new org.steamproject.model.GameOwnership(
+                        gid,
+                        g.getName(),
+                        Instant.now().minusSeconds(random.nextInt(60*60*24*365)).toString(),
+                        0, // playtime par défaut
+                        null, // lastPlayed
+                        Math.round((random.nextDouble() * 60.0) * 100.0) / 100.0 // pricePaid
+                    );
                     lib.add(go);
                 }
             }

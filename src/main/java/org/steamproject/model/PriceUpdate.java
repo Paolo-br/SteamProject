@@ -1,37 +1,64 @@
 package org.steamproject.model;
 
-public class PriceUpdate {
-    private String id;
-    private String gameId;
-    private Double oldPrice;
-    private Double newPrice;
-    private String currency;
-    private String date;
-    private long timestamp;
-
-    public PriceUpdate() {}
-
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
-
-    public String getGameId() { return gameId; }
-    public void setGameId(String gameId) { this.gameId = gameId; }
-
-    public Double getOldPrice() { return oldPrice; }
-    public void setOldPrice(Double oldPrice) { this.oldPrice = oldPrice; }
-
-    public Double getNewPrice() { return newPrice; }
-    public void setNewPrice(Double newPrice) { this.newPrice = newPrice; }
-
-    public String getCurrency() { return currency; }
-    public void setCurrency(String currency) { this.currency = currency; }
-
-    public String getDate() { return date; }
-    public void setDate(String date) { this.date = date; }
-
-    public long getTimestamp() { return timestamp; }
-    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
-
+/**
+ * Représente une mise à jour de prix pour un jeu.
+ * Cette classe utilise le pattern record  car PriceUpdate est un 
+ * transporteur de données immuable
+*/
+public record PriceUpdate(
+    String id,
+    String gameId,
+    Double oldPrice,
+    Double newPrice,
+    String currency,
+    String date,
+    long timestamp
+) {
+    /**
+     * Constructeur compact avec validation.
+    */
+    public PriceUpdate {
+        if (newPrice != null && newPrice < 0) {
+            throw new IllegalArgumentException("Le nouveau prix ne peut pas être négatif");
+        }
+        if (currency == null) {
+            currency = "EUR"; // Devise par défaut
+        }
+    }
+    
+    /**
+     * Méthode utilitaire pour créer un PriceUpdate avec timestamp automatique.
+     */
+    public static PriceUpdate now(String id, String gameId, Double oldPrice, 
+                                   Double newPrice, String currency, String date) {
+        return new PriceUpdate(id, gameId, oldPrice, newPrice, currency, date, 
+                               System.currentTimeMillis());
+    }
+    
+    /**
+     * Calcule le pourcentage de variation du prix.
+    */
+    public double getPriceChangePercent() {
+        if (oldPrice == null || oldPrice == 0 || newPrice == null) {
+            return 0.0;
+        }
+        return ((newPrice - oldPrice) / oldPrice) * 100.0;
+    }
+    
+    /**
+     * Vérifie si c'est une réduction de prix.
+     */
+    public boolean isDiscount() {
+        return oldPrice != null && newPrice != null && newPrice < oldPrice;
+    }
+    
+    /**
+     * Vérifie si c'est une augmentation de prix.
+     */
+    public boolean isPriceIncrease() {
+        return oldPrice != null && newPrice != null && newPrice > oldPrice;
+    }
+    
     @Override
     public String toString() {
         return "PriceUpdate{" + "gameId='" + gameId + '\'' + ", newPrice=" + newPrice + '}';

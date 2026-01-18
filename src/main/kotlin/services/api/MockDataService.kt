@@ -21,12 +21,34 @@ class MockDataService : DataService {
     override suspend fun getRecentPatches(limit: Int): List<Patch> = emptyList()
     override suspend fun getRatings(gameId: String): List<Rating> = emptyList()
     override suspend fun addRating(gameId: String, rating: Rating): Boolean = false
+    override suspend fun voteOnRating(ratingId: String, voterId: String, isHelpful: Boolean): Boolean = false
+    override suspend fun getRating(ratingId: String): Rating? = null
+    override suspend fun getComments(gameId: String): List<Comment> = emptyList()
+    override suspend fun addComment(comment: Comment): Boolean = false
     override suspend fun getPrice(gameId: String): Double? = null
-
-    // Implement new methods with safe defaults
     override suspend fun filterByYear(year: Int?): List<Game> = emptyList()
     override suspend fun filterByGenre(genre: String?): List<Game> = emptyList()
-    // topNByGlobalSales and paginate removed per UI requirements
+
+    // ========== ACHATS ==========
+    override suspend fun purchaseGame(playerId: String, gameId: String): Purchase? = null
+    override suspend fun purchaseDLC(playerId: String, dlcId: String): Purchase? = null
+    override suspend fun getPurchasesByPlayer(playerId: String): List<Purchase> = emptyList()
+    override suspend fun getRecentPurchases(limit: Int): List<Purchase> = emptyList()
+    override suspend fun getPurchaseStats(): PurchaseStats = PurchaseStats(0, 0.0)
+
+    // ========== DLC ==========
+    override suspend fun getDLCsForGame(gameId: String): List<DLC> = emptyList()
+    override suspend fun getDLC(dlcId: String): DLC? = null
+    override suspend fun canPurchaseDLC(playerId: String, dlcId: String): Boolean = false
+    override suspend fun getAllDLCs(): List<DLC> = emptyList()
+
+    // ========== PRIX AVANCÉS ==========
+    override suspend fun getPriceFactors(gameId: String): PriceFactors? = null
+    override suspend fun isOnPromotion(gameId: String): Boolean = false
+
+    // ========== PLATEFORMES ==========
+    override suspend fun getPlatforms(): List<String> = emptyList()
+    override suspend fun filterByPlatform(platform: String?): List<Game> = emptyList()
 
     // Lightweight dynamic methods used by tests or FakeKafkaService (optional)
     fun addPatch(patch: Patch) {}
