@@ -10,20 +10,27 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.example.model.DistributionPlatform
 import org.example.model.Game
+import org.example.services.api.PlatformStats
 import org.example.services.ServiceLocator
 import org.example.state.NavigationState
 import org.example.ui.navigation.Screen
 
 /**
- * Écran de filtrage par plateforme.
- * Affiche les plateformes disponibles et permet de filtrer les jeux.
+ * Écran de filtrage par plateforme de distribution.
+ * 
  */
 @Composable
 fun PlatformsScreen(
@@ -31,21 +38,27 @@ fun PlatformsScreen(
     navigationState: NavigationState
 ) {
     val dataService = ServiceLocator.dataService
-    var platforms by remember { mutableStateOf<List<String>>(emptyList()) }
-    var selectedPlatform by remember { mutableStateOf<String?>(null) }
+    
+    // État pour les plateformes de distribution (et non les supports matériels)
+    var distributionPlatforms by remember { mutableStateOf<List<DistributionPlatform>>(emptyList()) }
+    var platformStats by remember { mutableStateOf<Map<DistributionPlatform, PlatformStats>>(emptyMap()) }
+    var selectedPlatform by remember { mutableStateOf<DistributionPlatform?>(null) }
     var games by remember { mutableStateOf<List<Game>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
+    // Chargement initial des plateformes de distribution
     LaunchedEffect(Unit) {
         isLoading = true
-        platforms = dataService.getPlatforms()
+        distributionPlatforms = dataService.getDistributionPlatforms()
+        platformStats = dataService.getDistributionPlatformStats()
         games = dataService.getCatalog()
         isLoading = false
     }
 
+    // Filtrage par plateforme de distribution sélectionnée
     LaunchedEffect(selectedPlatform) {
         isLoading = true
-        games = dataService.filterByPlatform(selectedPlatform)
+        games = dataService.filterByDistributionPlatform(selectedPlatform?.id)
         isLoading = false
     }
 
@@ -68,43 +81,53 @@ fun PlatformsScreen(
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Jeux par Plateforme",
-                style = MaterialTheme.typography.h4,
-                fontWeight = FontWeight.Bold
-            )
+            Column {
+                Text(
+                    text = "Plateformes de Distribution",
+                    style = MaterialTheme.typography.h4,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Steam, PS Store, Xbox Store...",
+                    style = MaterialTheme.typography.caption,
+                    color = Color.Gray
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Filtres de plateformes
+        // Cartes des plateformes de distribution
         Card(
             modifier = Modifier.fillMaxWidth(),
             elevation = 4.dp
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "Sélectionner une plateforme",
+                    text = "Sélectionner une plateforme de distribution",
                     style = MaterialTheme.typography.h6
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     // Bouton "Toutes"
                     item {
-                        PlatformChip(
-                            platform = "Toutes",
+                        DistributionPlatformCard(
+                            platform = null,
                             isSelected = selectedPlatform == null,
+                            stats = null,
                             onClick = { selectedPlatform = null }
                         )
                     }
                     
-                    items(platforms) { platform ->
-                        PlatformChip(
+                    // Cartes pour chaque plateforme de distribution
+                    items(distributionPlatforms) { platform ->
+                        DistributionPlatformCard(
                             platform = platform,
-                            isSelected = selectedPlatform == platform,
+                            isSelected = selectedPlatform?.id == platform.id,
+                            stats = platformStats[platform],
                             onClick = { selectedPlatform = platform }
                         )
                     }
@@ -114,14 +137,14 @@ fun PlatformsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Stats
+        // Statistiques globales
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             StatCard(
                 title = "Plateformes",
-                value = platforms.size.toString(),
+                value = distributionPlatforms.size.toString(),
                 modifier = Modifier.weight(1f)
             )
             StatCard(
@@ -130,13 +153,19 @@ fun PlatformsScreen(
                 modifier = Modifier.weight(1f)
             )
             StatCard(
-                title = "Filtre actif",
-                value = selectedPlatform ?: "Aucun",
+                title = "Plateforme active",
+                value = selectedPlatform?.name ?: "Toutes",
                 modifier = Modifier.weight(1f)
             )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        // Informations sur la plateforme sélectionnée
+        selectedPlatform?.let { platform ->
+            PlatformInfoCard(platform = platform, stats = platformStats[platform])
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         // Liste des jeux
         if (isLoading) {
@@ -151,7 +180,7 @@ fun PlatformsScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = if (selectedPlatform != null) 
-                            "Jeux sur $selectedPlatform (${games.size})" 
+                            "Jeux sur ${selectedPlatform!!.name} (${games.size})" 
                         else 
                             "Tous les jeux (${games.size})",
                         style = MaterialTheme.typography.h6
@@ -182,26 +211,133 @@ fun PlatformsScreen(
     }
 }
 
+/**
+ * Carte représentant une plateforme de distribution.
+ * Affiche le nom, l'icône et les statistiques de la plateforme.
+ */
 @Composable
-private fun PlatformChip(
-    platform: String,
+private fun DistributionPlatformCard(
+    platform: DistributionPlatform?,
     isSelected: Boolean,
+    stats: PlatformStats?,
     onClick: () -> Unit
 ) {
-    val backgroundColor = if (isSelected) MaterialTheme.colors.primary else Color.LightGray
+    val backgroundColor = if (isSelected) {
+        getPlatformColor(platform?.id ?: "all")
+    } else {
+        Color.LightGray
+    }
     val textColor = if (isSelected) Color.White else Color.Black
 
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        color = backgroundColor
+    Card(
+        modifier = Modifier
+            .width(140.dp)
+            .clickable { onClick() },
+        elevation = if (isSelected) 8.dp else 2.dp,
+        backgroundColor = backgroundColor,
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Text(
-            text = platform,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            color = textColor,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-        )
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = platform?.name ?: "Toutes",
+                style = MaterialTheme.typography.body2,
+                fontWeight = FontWeight.Bold,
+                color = textColor
+            )
+            if (stats != null) {
+                Text(
+                    text = "${stats.gameCount} jeux",
+                    style = MaterialTheme.typography.caption,
+                    color = textColor.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Carte d'information détaillée sur une plateforme de distribution.
+ */
+@Composable
+private fun PlatformInfoCard(
+    platform: DistributionPlatform,
+    stats: PlatformStats?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = 4.dp,
+        backgroundColor = getPlatformColor(platform.id).copy(alpha = 0.1f)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = getPlatformIcon(platform.id),
+                    contentDescription = platform.name,
+                    tint = getPlatformColor(platform.id),
+                    modifier = Modifier.size(40.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = platform.name,
+                        style = MaterialTheme.typography.h6,
+                        fontWeight = FontWeight.Bold
+                    )
+                    platform.description?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.caption,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            Divider()
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Supports matériels pris en charge
+            Text(
+                text = "Supports matériels pris en charge :",
+                style = MaterialTheme.typography.caption,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(platform.supportedHardware) { hardware ->
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color.LightGray
+                    ) {
+                        Text(
+                            text = hardware,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.caption
+                        )
+                    }
+                }
+            }
+            
+            if (platform.offersFreeGames) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color(0xFF4CAF50)
+                ) {
+                    Text(
+                        text = "Propose des jeux gratuits",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.caption,
+                        color = Color.White
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -232,6 +368,10 @@ private fun StatCard(
     }
 }
 
+/**
+ * Ligne représentant un jeu avec son support matériel.
+ * 
+*/
 @Composable
 private fun GamePlatformRow(
     game: Game,
@@ -249,13 +389,12 @@ private fun GamePlatformRow(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Plateforme badge
             Surface(
                 shape = RoundedCornerShape(4.dp),
-                color = getPlatformColor(game.platform ?: "")
+                color = getHardwareSupportColor(game.hardwareSupport ?: "")
             ) {
                 Text(
-                    text = game.platform ?: "?",
+                    text = game.hardwareSupport ?: "?",
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.caption,
                     color = Color.White,
@@ -272,11 +411,13 @@ private fun GamePlatformRow(
                     style = MaterialTheme.typography.body1,
                     fontWeight = FontWeight.Medium
                 )
-                Text(
-                    text = "${game.genre ?: "N/A"} - ${game.releaseYear ?: "?"} - ${game.publisherName ?: "?"}",
-                    style = MaterialTheme.typography.caption,
-                    color = Color.Gray
-                )
+                Row {
+                    Text(
+                        text = "${game.genre ?: "N/A"} • ${game.releaseYear ?: "?"} • ${game.publisherName ?: "?"}",
+                        style = MaterialTheme.typography.caption,
+                        color = Color.Gray
+                    )
+                }
             }
             
             // Ventes globales
@@ -297,14 +438,49 @@ private fun GamePlatformRow(
 }
 
 /**
- * Retourne une couleur basée sur la plateforme.
+ * Retourne une couleur pour une plateforme de distribution.
+ * Chaque grande plateforme a sa couleur de marque.
  */
-private fun getPlatformColor(platform: String): Color {
-    return when (platform.uppercase()) {
-        "PS4", "PS3", "PS2", "PS", "PSP", "PSV" -> Color(0xFF003087) // PlayStation blue
-        "XONE", "X360", "XB" -> Color(0xFF107C10) // Xbox green
-        "WII", "WIIU", "DS", "3DS", "N64", "GBA", "GC", "NES", "SNES", "GB" -> Color(0xFFE60012) // Nintendo red
-        "PC" -> Color(0xFF1B2838) // Steam dark
+private fun getPlatformColor(platformId: String?): Color {
+    return when (platformId?.lowercase()) {
+        "steam" -> Color(0xFF1B2838)         // Steam dark blue
+        "psn" -> Color(0xFF003087)           // PlayStation blue
+        "xbox" -> Color(0xFF107C10)          // Xbox green
+        "nintendo" -> Color(0xFFE60012)      // Nintendo red
+        "all" -> Color(0xFF6200EE)           // Material purple
+        else -> Color.DarkGray
+    }
+}
+
+/**
+ * Retourne une icône pour une plateforme de distribution.
+ * Utilise des icônes Material Icons disponibles.
+ */
+private fun getPlatformIcon(platformId: String?): ImageVector {
+    return when (platformId?.lowercase()) {
+        "steam" -> Icons.Default.List       // Steam comme plateforme principale
+        "psn" -> Icons.Default.List         // PlayStation
+        "xbox" -> Icons.Default.List        // Xbox
+        "nintendo" -> Icons.Default.List    // Nintendo
+        else -> Icons.Default.List
+    }
+}
+
+/**
+ * Retourne une couleur basée sur le support matériel (hardware).
+ * 
+*/
+private fun getHardwareSupportColor(hardware: String): Color {
+    return when (hardware.uppercase()) {
+        // Sony hardware
+        "PS4", "PS3", "PS2", "PS", "PS5", "PSP", "PSV" -> Color(0xFF003087)
+        // Microsoft hardware
+        "XONE", "X360", "XB", "XS" -> Color(0xFF107C10)
+        // Nintendo hardware
+        "WII", "WIIU", "DS", "3DS", "N64", "GBA", "GC", "NES", "SNES", "GB", "NS" -> Color(0xFFE60012)
+        // PC
+        "PC" -> Color(0xFF1B2838)
+        // Autres
         else -> Color.DarkGray
     }
 }

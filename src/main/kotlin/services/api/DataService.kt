@@ -203,13 +203,68 @@ interface DataService {
     // ========== FILTRAGE PAR PLATEFORME ==========
 
     /**
-     * Récupère la liste des plateformes disponibles.
+     * Récupère la liste des supports matériels disponibles (PC, PS4, Wii, etc.)
+     * @deprecated Utiliser getDistributionPlatforms() pour les plateformes de distribution.
      */
+    @Deprecated("Confus: retourne les supports matériels. Utiliser getHardwareSupports() ou getDistributionPlatforms()")
     suspend fun getPlatforms(): List<String>
 
     /**
-     * Filtre les jeux par plateforme.
+     * Filtre les jeux par support matériel.
+     * @deprecated Utiliser filterByHardwareSupport() ou filterByDistributionPlatform().
      */
+    @Deprecated("Confus: filtre par support matériel. Utiliser filterByHardwareSupport() ou filterByDistributionPlatform()")
     suspend fun filterByPlatform(platform: String?): List<Game>
+
+    // ========== PLATEFORMES DE DISTRIBUTION ==========
+
+    /**
+     * Récupère la liste des plateformes de distribution disponibles.
+     * 
+     * @return Liste des plateformes de distribution connues
+     */
+    suspend fun getDistributionPlatforms(): List<DistributionPlatform>
+
+    /**
+     * Filtre les jeux par plateforme de distribution.
+     * 
+     * @param platformId Identifiant de la plateforme (steam, epic, psn, xbox, nintendo)
+     * @return Liste des jeux disponibles sur cette plateforme
+     */
+    suspend fun filterByDistributionPlatform(platformId: String?): List<Game>
+
+    /**
+     * Récupère les statistiques pour chaque plateforme de distribution.
+     * 
+     * @return Map associant chaque plateforme à ses statistiques (nombre de jeux, joueurs, etc.)
+     */
+    suspend fun getDistributionPlatformStats(): Map<DistributionPlatform, PlatformStats>
+
+    // ========== SUPPORTS MATÉRIELS (CLARIFICATION) ==========
+
+    /**
+     * Récupère la liste des supports matériels disponibles (PC, PS4, Wii, etc.)
+     * 
+     * @return Liste des codes de supports matériels distincts
+     */
+    suspend fun getHardwareSupports(): List<String>
+
+    /**
+     * Filtre les jeux par support matériel (hardware).
+     * 
+     * @param hardwareCode Code du support (PC, PS4, WII, etc.)
+     * @return Liste des jeux disponibles sur ce support
+     */
+    suspend fun filterByHardwareSupport(hardwareCode: String?): List<Game>
 }
+
+/**
+ * Statistiques d'une plateforme de distribution.
+ */
+data class PlatformStats(
+    val gameCount: Int = 0,
+    val playerCount: Int = 0,
+    val totalSales: Double = 0.0,
+    val averageRating: Double? = null
+)
 

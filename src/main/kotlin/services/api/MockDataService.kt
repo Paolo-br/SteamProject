@@ -47,8 +47,19 @@ class MockDataService : DataService {
     override suspend fun isOnPromotion(gameId: String): Boolean = false
 
     // ========== PLATEFORMES ==========
+    @Suppress("DEPRECATION")
     override suspend fun getPlatforms(): List<String> = emptyList()
+    @Suppress("DEPRECATION")
     override suspend fun filterByPlatform(platform: String?): List<Game> = emptyList()
+
+    // ========== PLATEFORMES DE DISTRIBUTION ==========
+    override suspend fun getDistributionPlatforms(): List<DistributionPlatform> = DistributionPlatform.getAllKnown()
+    override suspend fun filterByDistributionPlatform(platformId: String?): List<Game> = emptyList()
+    override suspend fun getDistributionPlatformStats(): Map<DistributionPlatform, PlatformStats> = emptyMap()
+
+    // ========== SUPPORTS MATÉRIELS ==========
+    override suspend fun getHardwareSupports(): List<String> = emptyList()
+    override suspend fun filterByHardwareSupport(hardwareCode: String?): List<Game> = emptyList()
 
     // Lightweight dynamic methods used by tests or FakeKafkaService (optional)
     fun addPatch(patch: Patch) {}

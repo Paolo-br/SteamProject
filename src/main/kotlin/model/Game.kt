@@ -6,7 +6,18 @@ package org.example.model
 data class Game(
     val id: String,
     val name: String,
-    val platform: String? = null,
+    
+    /**
+     * Support matériel sur lequel le jeu s'exécute (PC, PS4, Wii, etc.)
+     */
+    val hardwareSupport: String? = null,
+    
+    /**
+     * Identifiant de la plateforme de distribution (steam, epic, psn, xbox, nintendo).
+     * Représente le magasin/service où le jeu est vendu.
+     */
+    val distributionPlatformId: String? = null,
+    
     val genre: String? = null,
     val publisherId: String? = null,
     val publisherName: String? = null,
@@ -24,7 +35,28 @@ data class Game(
     val versions: List<GameVersion>? = null,
     val incidents: List<Incident>? = null,
     val ratings: List<Rating>? = null
-)
+) {
+    /**
+     * Propriété de compatibilité : retourne le support matériel.
+     * @deprecated Utiliser hardwareSupport à la place.
+     */
+    @Deprecated("Utiliser hardwareSupport pour le support matériel ou distributionPlatformId pour la plateforme de distribution", 
+                ReplaceWith("hardwareSupport"))
+    val platform: String? get() = hardwareSupport
+    
+    /**
+     * Retourne la plateforme de distribution associée à ce jeu.
+     * Si aucune n'est explicitement définie, l'infère à partir du support matériel.
+     */
+    fun getDistributionPlatform(): DistributionPlatform {
+        return if (distributionPlatformId != null) {
+            DistributionPlatform.fromId(distributionPlatformId) ?: DistributionPlatform.STEAM
+        } else {
+            // Inférence basée sur le support matériel pour compatibilité données existantes
+            DistributionPlatform.inferFromHardwareCode(hardwareSupport)
+        }
+    }
+}
 
 /**
  * Modèle pour l'historique des versions d'un jeu.

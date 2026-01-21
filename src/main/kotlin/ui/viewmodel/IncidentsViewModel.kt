@@ -51,7 +51,7 @@ class IncidentsViewModel : BaseViewModel() {
                             GameIncidents(
                                 gameId = game.id,
                                 gameName = game.name,
-                                platform = game.platform ?: "PC",
+                                platform = game.hardwareSupport ?: "PC",
                                 currentVersion = game.currentVersion ?: "1.0.0",
                                 totalIncidents = game.incidentCount ?: 0,
                                 incidentHistory = game.incidents ?: emptyList()

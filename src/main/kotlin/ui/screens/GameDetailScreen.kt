@@ -155,7 +155,7 @@ private fun GameInfoSection(data: org.example.ui.viewmodel.GameDetailData) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(32.dp)
             ) {
-                InfoItem("Plateforme", data.game.platform ?: "N/A")
+                InfoItem("Support", data.game.hardwareSupport ?: "N/A")
                 InfoItem("Genre", data.game.genre ?: "N/A")
                 InfoItem("Année", data.game.releaseYear?.toString() ?: "N/A")
                 InfoItem("Éditeur", data.publisher?.name ?: "N/A")

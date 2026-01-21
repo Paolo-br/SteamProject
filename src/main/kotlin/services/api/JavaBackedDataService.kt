@@ -87,11 +87,16 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
         val publisherId = javaGame.getPublisher() ?: ""
         val idBytes = (javaGame.getName() + "|" + (javaGame.getPlatform() ?: "")).toByteArray(StandardCharsets.UTF_8)
         val id = UUID.nameUUIDFromBytes(idBytes).toString()
+        
+        // Nous inférons la plateforme de distribution à partir de ce support.
+        val hardwareCode = javaGame.getPlatform()
+        val inferredPlatform = DistributionPlatform.inferFromHardwareCode(hardwareCode)
 
         return Game(
             id = id,
             name = javaGame.getName() ?: "",
-            platform = javaGame.getPlatform(),
+            hardwareSupport = hardwareCode,
+            distributionPlatformId = inferredPlatform.id,
             genre = javaGame.getGenre(),
             publisherId = if (publisherId.isNotBlank()) publisherId.lowercase().replace(" ", "_") else null,
             publisherName = javaGame.getPublisher(),
@@ -353,6 +358,8 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
 
     // ========== FILTRAGE PAR PLATEFORME ==========
 
+
+    @Suppress("DEPRECATION")
     override suspend fun getPlatforms(): List<String> = withContext(Dispatchers.IO) {
         javaService.getAll()
             .mapNotNull { it.getPlatform() }
@@ -360,12 +367,87 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
             .sorted()
     }
 
+    @Suppress("DEPRECATION")
     override suspend fun filterByPlatform(platform: String?): List<Game> = withContext(Dispatchers.IO) {
         if (platform.isNullOrBlank()) {
             javaService.getAll().map { map(it) }
         } else {
             javaService.getAll()
                 .filter { it.getPlatform()?.equals(platform, ignoreCase = true) == true }
+                .map { map(it) }
+        }
+    }
+
+    // ========== PLATEFORMES DE DISTRIBUTION (NOUVEAU) ==========
+
+    /**
+     * Retourne toutes les plateformes de distribution connues.
+     * 
+     */
+    override suspend fun getDistributionPlatforms(): List<DistributionPlatform> = withContext(Dispatchers.IO) {
+        DistributionPlatform.getAllKnown()
+    }
+
+    /**
+     * Filtre les jeux par plateforme de distribution.
+     * 
+     * La plateforme est inférée du support matériel pour les données CSV existantes.
+     */
+    override suspend fun filterByDistributionPlatform(platformId: String?): List<Game> = withContext(Dispatchers.IO) {
+        if (platformId.isNullOrBlank()) {
+            javaService.getAll().map { map(it) }
+        } else {
+            javaService.getAll()
+                .map { map(it) }
+                .filter { it.distributionPlatformId?.equals(platformId, ignoreCase = true) == true }
+        }
+    }
+
+    /**
+     * Calcule les statistiques par plateforme de distribution.
+     */
+    override suspend fun getDistributionPlatformStats(): Map<DistributionPlatform, PlatformStats> = withContext(Dispatchers.IO) {
+        val allGames = javaService.getAll().map { map(it) }
+        val allPlayers = playerService.getAllPlayers()
+        
+        DistributionPlatform.getAllKnown().associateWith { platform ->
+            val platformGames = allGames.filter { it.distributionPlatformId == platform.id }
+            val platformPlayers = allPlayers.filter { 
+                it.getId().hashCode() % DistributionPlatform.getAllKnown().size == 
+                    DistributionPlatform.getAllKnown().indexOf(platform)
+            }
+            
+            PlatformStats(
+                gameCount = platformGames.size,
+                playerCount = platformPlayers.size,
+                totalSales = platformGames.sumOf { it.salesGlobal ?: 0.0 },
+                averageRating = null // À calculer avec les vraies évaluations
+            )
+        }
+    }
+
+    // ========== SUPPORTS MATÉRIELS (CLARIFICATION) ==========
+
+    /**
+     * Retourne la liste des supports matériels distincts.
+     * 
+     */
+    override suspend fun getHardwareSupports(): List<String> = withContext(Dispatchers.IO) {
+        javaService.getAll()
+            .mapNotNull { it.getPlatform() }
+            .distinct()
+            .sorted()
+    }
+
+    /**
+     * Filtre les jeux par support matériel (hardware).
+     */
+    override suspend fun filterByHardwareSupport(hardwareCode: String?): List<Game> = withContext(Dispatchers.IO) {
+        if (hardwareCode.isNullOrBlank()) {
+            javaService.getAll().map { map(it) }
+        } else {
+            javaService.getAll()
+                .filter { it.getPlatform()?.equals(hardwareCode, ignoreCase = true) == true }
                 .map { map(it) }
         }
     }

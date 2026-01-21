@@ -277,7 +277,7 @@ private fun TableRow(
         )
 
         Text(
-            text = game.platform ?: "N/A",
+            text = game.hardwareSupport ?: "N/A",
             modifier = Modifier.weight(1.5f),
             style = MaterialTheme.typography.body2,
             color = Color.Gray
