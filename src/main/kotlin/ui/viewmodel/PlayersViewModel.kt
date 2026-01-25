@@ -35,6 +35,15 @@ class PlayersViewModel : BaseViewModel() {
 
     init {
         loadPlayers()
+        // Periodic polling to refresh players list from backend (every 3s)
+        viewModelScope.launch {
+            while (true) {
+                try {
+                    loadPlayers()
+                } catch (_: Exception) {}
+                kotlinx.coroutines.delay(3000)
+            }
+        }
     }
 
     /**

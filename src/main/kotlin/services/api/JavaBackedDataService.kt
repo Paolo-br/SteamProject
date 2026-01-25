@@ -22,6 +22,13 @@ import org.steamproject.service.DLCService
 import org.steamproject.service.PriceService
 import java.nio.charset.StandardCharsets
 import java.util.*
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.net.URI
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 
 /**
  * Adapter qui réutilise la `GameDataService` Java (chargée depuis classpath)
@@ -117,29 +124,117 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
         )
     }
 
+    // Try to fetch a REST-projected catalog from a local service.
+    // Returns an empty list when the projection is available but contains no entries.
+    // Returns null when the projection is unavailable (HTTP error / connection problem).
+    private fun tryFetchCatalogFromRest(): List<Game>? {
+        return try {
+            val client = HttpClient.newHttpClient()
+            val req = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/catalog")).GET().build()
+            val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
+            if (resp.statusCode() != 200) return null
+            val mapper = jacksonObjectMapper()
+            val node = mapper.readTree(resp.body())
+            if (!node.isArray) return emptyList()
+            val out = mutableListOf<Game>()
+            for (n in node) {
+                val id = n.get("gameId")?.asText() ?: continue
+                val name = n.get("gameName")?.asText() ?: ""
+                val hw = n.get("platform")?.asText()
+                val releaseYear = n.get("releaseYear")?.asInt() ?: null
+                val publisherId = n.get("publisherId")?.asText()?.takeIf { it.isNotBlank() }
+                val publisherName = null
+                val inferredDist = if (hw != null) DistributionPlatform.inferFromHardwareCode(hw) else DistributionPlatform.STEAM
+                val g = Game(
+                    id = id,
+                    name = name,
+                    hardwareSupport = hw,
+                    distributionPlatformId = inferredDist.id,
+                    genre = null,
+                    publisherId = publisherId,
+                    publisherName = publisherName,
+                    releaseYear = releaseYear,
+                    currentVersion = null,
+                    price = null,
+                    averageRating = null,
+                    incidentCount = null,
+                    salesNA = null,
+                    salesEU = null,
+                    salesJP = null,
+                    salesOther = null,
+                    salesGlobal = null,
+                    description = null,
+                    versions = emptyList(),
+                    incidents = emptyList(),
+                    ratings = emptyList()
+                )
+                out.add(g)
+            }
+            return out
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     override suspend fun getCatalog(): List<Game> = withContext(Dispatchers.IO) {
-        javaService.getAll().stream().map { map(it) }.toList()
+        // Use REST projection as the single source of truth for catalog.
+        // If the projection service is unavailable, return an empty list
+        // (do NOT fall back to CSV seed data).
+        try {
+            val rest = tryFetchCatalogFromRest()
+            return@withContext rest ?: emptyList()
+        } catch (_: Exception) {
+            return@withContext emptyList()
+        }
     }
 
     override suspend fun getGame(gameId: String): Game? = withContext(Dispatchers.IO) {
-        javaService.getAll().stream().map { map(it) }.filter { it.id == gameId }.findFirst().orElse(null)
+        return@withContext try {
+            val rest = tryFetchCatalogFromRest()
+            rest?.firstOrNull { it.id == gameId }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     override suspend fun searchGames(query: String): List<Game> = withContext(Dispatchers.IO) {
-        if (query.isBlank()) return@withContext javaService.getAll().stream().map { map(it) }.toList()
+        // Search only within the REST-projected catalog.
+        val rest = tryFetchCatalogFromRest() ?: return@withContext emptyList()
+        if (query.isBlank()) return@withContext rest
         val q = query.lowercase()
-        javaService.getAll().stream()
-            .map { map(it) }
-            .filter { (it.name.lowercase().contains(q) || (it.genre ?: "").lowercase().contains(q) || (it.publisherName ?: "").lowercase().contains(q)) }
-            .toList()
+        rest.filter { (it.name.lowercase().contains(q) || (it.genre ?: "").lowercase().contains(q) || (it.publisherName ?: "").lowercase().contains(q)) }
     }
 
     override suspend fun getGamesByPublisher(publisherId: String): List<Game> = withContext(Dispatchers.IO) {
-        javaService.getAll().stream().map { map(it) }.filter { it.publisherId == publisherId }.toList()
+        val rest = tryFetchCatalogFromRest() ?: return@withContext emptyList()
+        return@withContext rest.filter { it.publisherId == publisherId }
     }
 
     override suspend fun getPublishers(): List<Publisher> = withContext(Dispatchers.IO) {
-        publisherService.getAllPublishers().map { mapPublisher(it) }
+        // Publishers are authoritative from ingestion: always return publishers created
+        // by the ingestion process. Update statistics (gamesPublished) from the
+        // projection when available, but do not invent publishers.
+        val base = try {
+            publisherService.getAllPublishers().map { mapPublisher(it) }
+        } catch (_: Exception) {
+            emptyList<Publisher>()
+        }
+
+        try {
+            val client = HttpClient.newHttpClient()
+            val req = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/publishers-list")).GET().build()
+            val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
+            if (resp.statusCode() == 200) {
+                val mapper = jacksonObjectMapper()
+                val counts: Map<String, Int> = mapper.readValue(resp.body())
+                return@withContext base.map { p ->
+                    p.copy(gamesPublished = counts[p.id] ?: p.gamesPublished)
+                }
+            }
+        } catch (_: Exception) {}
+
+        // Projection unavailable: return ingestion publishers as-is.
+        return@withContext base
     }
 
     override suspend fun getPublisher(publisherId: String): Publisher? = withContext(Dispatchers.IO) {
@@ -147,11 +242,91 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
     }
 
     override suspend fun getPlayers(): List<Player> = withContext(Dispatchers.IO) {
-        playerService.getAllPlayers().map { mapPlayer(it) }
+        // Return only players known to the projection. If projection is unavailable,
+        // return an empty list (do NOT expose CSV/seed players).
+        try {
+            val client = HttpClient.newHttpClient()
+            val req = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/players")).GET().build()
+            val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
+            if (resp.statusCode() == 200) {
+                val mapper = ObjectMapper()
+                val nodes = mapper.readTree(resp.body())
+                val out = mutableListOf<Player>()
+                if (nodes.isArray) {
+                    for (n in nodes) {
+                        val id = n.get("id")?.asText() ?: continue
+                        val username = n.get("username")?.asText() ?: ""
+                        val email = n.get("email")?.asText() ?: ""
+                        val reg = n.get("registrationDate")?.asText() ?: ""
+                        // Fetch library for this player from projection REST so list shows correct counts
+                        val libReq = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/players/" + id + "/library")).GET().build()
+                        val libResp = try { client.send(libReq, HttpResponse.BodyHandlers.ofString()) } catch (_: Exception) { null }
+                        val library = mutableListOf<org.example.model.GameOwnership>()
+                        if (libResp != null && libResp.statusCode() == 200) {
+                            val libNodes = mapper.readTree(libResp.body())
+                            if (libNodes.isArray) {
+                                for (ln in libNodes) {
+                                    val gid = ln.get("gameId")?.asText() ?: continue
+                                    val gname = ln.get("gameName")?.asText() ?: ""
+                                    val purchaseDate = ln.get("purchaseDate")?.asText() ?: java.time.Instant.now().toString()
+                                    val playtime = ln.get("playtime")?.asInt() ?: 0
+                                    library.add(org.example.model.GameOwnership(gameId = gid, gameName = gname, purchaseDate = purchaseDate, playtime = playtime))
+                                }
+                            }
+                        }
+
+                        out.add(Player(id = id, username = username, email = email, registrationDate = reg, library = library))
+                    }
+                }
+                return@withContext out
+            }
+        } catch (_: Exception) {}
+        emptyList()
     }
 
     override suspend fun getPlayer(playerId: String): Player? = withContext(Dispatchers.IO) {
-        playerService.getPlayerById(playerId)?.let { mapPlayer(it) }
+        // Build Player only from projection data. If no player is present in projection,
+        // return null.
+        try {
+            // First fetch base player info from /api/players
+            val client = HttpClient.newHttpClient()
+            val listReq = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/players")).GET().build()
+            val listResp = client.send(listReq, HttpResponse.BodyHandlers.ofString())
+            if (listResp.statusCode() != 200) return@withContext null
+            val mapper = ObjectMapper()
+            val nodes = mapper.readTree(listResp.body())
+            var baseNode: com.fasterxml.jackson.databind.JsonNode? = null
+            if (nodes.isArray) {
+                for (n in nodes) {
+                    if (n.get("id")?.asText() == playerId) { baseNode = n; break }
+                }
+            }
+            if (baseNode == null) return@withContext null
+            val username = baseNode.get("username")?.asText() ?: ""
+            val email = baseNode.get("email")?.asText() ?: ""
+            val reg = baseNode.get("registrationDate")?.asText() ?: ""
+
+            // Then fetch the library
+            val libReq = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/players/" + playerId + "/library")).GET().build()
+            val libResp = client.send(libReq, HttpResponse.BodyHandlers.ofString())
+            val library = mutableListOf<org.example.model.GameOwnership>()
+            if (libResp.statusCode() == 200) {
+                val libNodes = mapper.readTree(libResp.body())
+                if (libNodes.isArray) {
+                    for (n in libNodes) {
+                        val gid = n.get("gameId")?.asText() ?: continue
+                        val gname = n.get("gameName")?.asText() ?: ""
+                        val purchaseDate = n.get("purchaseDate")?.asText() ?: java.time.Instant.now().toString()
+                        val playtime = n.get("playtime")?.asInt() ?: 0
+                        library.add(org.example.model.GameOwnership(gameId = gid, gameName = gname, purchaseDate = purchaseDate, playtime = playtime))
+                    }
+                }
+            }
+
+            return@withContext Player(id = playerId, username = username, email = email, registrationDate = reg, library = library)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun mapPatch(j: JavaPatch): Patch {
@@ -361,21 +536,15 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
 
     @Suppress("DEPRECATION")
     override suspend fun getPlatforms(): List<String> = withContext(Dispatchers.IO) {
-        javaService.getAll()
-            .mapNotNull { it.getPlatform() }
-            .distinct()
-            .sorted()
+        val rest = tryFetchCatalogFromRest() ?: return@withContext emptyList()
+        return@withContext rest.mapNotNull { it.hardwareSupport }.distinct().sorted()
     }
 
     @Suppress("DEPRECATION")
     override suspend fun filterByPlatform(platform: String?): List<Game> = withContext(Dispatchers.IO) {
-        if (platform.isNullOrBlank()) {
-            javaService.getAll().map { map(it) }
-        } else {
-            javaService.getAll()
-                .filter { it.getPlatform()?.equals(platform, ignoreCase = true) == true }
-                .map { map(it) }
-        }
+        val rest = tryFetchCatalogFromRest() ?: return@withContext emptyList()
+        if (platform.isNullOrBlank()) return@withContext rest
+        return@withContext rest.filter { it.hardwareSupport?.equals(platform, ignoreCase = true) == true }
     }
 
     // ========== PLATEFORMES DE DISTRIBUTION (NOUVEAU) ==========
@@ -394,34 +563,46 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
      * La plateforme est inférée du support matériel pour les données CSV existantes.
      */
     override suspend fun filterByDistributionPlatform(platformId: String?): List<Game> = withContext(Dispatchers.IO) {
-        if (platformId.isNullOrBlank()) {
-            javaService.getAll().map { map(it) }
-        } else {
-            javaService.getAll()
-                .map { map(it) }
-                .filter { it.distributionPlatformId?.equals(platformId, ignoreCase = true) == true }
-        }
+        val rest = tryFetchCatalogFromRest() ?: return@withContext emptyList()
+        if (platformId.isNullOrBlank()) return@withContext rest
+        return@withContext rest.filter { it.distributionPlatformId?.equals(platformId, ignoreCase = true) == true }
     }
 
     /**
      * Calcule les statistiques par plateforme de distribution.
      */
     override suspend fun getDistributionPlatformStats(): Map<DistributionPlatform, PlatformStats> = withContext(Dispatchers.IO) {
-        val allGames = javaService.getAll().map { map(it) }
-        val allPlayers = playerService.getAllPlayers()
-        
+        // Compute stats from projection (catalog + players) only.
+        val allGames = tryFetchCatalogFromRest() ?: emptyList()
+        // Fetch players from REST projection
+        val players = try {
+            val client = HttpClient.newHttpClient()
+            val req = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/players")).GET().build()
+            val resp = client.send(req, HttpResponse.BodyHandlers.ofString())
+            if (resp.statusCode() == 200) {
+                val mapper = ObjectMapper()
+                val nodes = mapper.readTree(resp.body())
+                val out = mutableListOf<Player>()
+                if (nodes.isArray) {
+                    for (n in nodes) {
+                        val id = n.get("id")?.asText() ?: continue
+                        val username = n.get("username")?.asText() ?: ""
+                        val reg = n.get("registrationDate")?.asText() ?: ""
+                        out.add(Player(id = id, username = username, email = "", registrationDate = reg))
+                    }
+                }
+                out
+            } else emptyList()
+        } catch (_: Exception) { emptyList() }
+
         DistributionPlatform.getAllKnown().associateWith { platform ->
             val platformGames = allGames.filter { it.distributionPlatformId == platform.id }
-            val platformPlayers = allPlayers.filter { 
-                it.getId().hashCode() % DistributionPlatform.getAllKnown().size == 
-                    DistributionPlatform.getAllKnown().indexOf(platform)
-            }
-            
+            val platformPlayers = players.filter { it.getDistributionPlatform().id == platform.id }
             PlatformStats(
                 gameCount = platformGames.size,
                 playerCount = platformPlayers.size,
                 totalSales = platformGames.sumOf { it.salesGlobal ?: 0.0 },
-                averageRating = null // À calculer avec les vraies évaluations
+                averageRating = null
             )
         }
     }
@@ -433,22 +614,16 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
      * 
      */
     override suspend fun getHardwareSupports(): List<String> = withContext(Dispatchers.IO) {
-        javaService.getAll()
-            .mapNotNull { it.getPlatform() }
-            .distinct()
-            .sorted()
+        val rest = tryFetchCatalogFromRest() ?: return@withContext emptyList()
+        return@withContext rest.mapNotNull { it.hardwareSupport }.distinct().sorted()
     }
 
     /**
      * Filtre les jeux par support matériel (hardware).
      */
     override suspend fun filterByHardwareSupport(hardwareCode: String?): List<Game> = withContext(Dispatchers.IO) {
-        if (hardwareCode.isNullOrBlank()) {
-            javaService.getAll().map { map(it) }
-        } else {
-            javaService.getAll()
-                .filter { it.getPlatform()?.equals(hardwareCode, ignoreCase = true) == true }
-                .map { map(it) }
-        }
+        val rest = tryFetchCatalogFromRest() ?: return@withContext emptyList()
+        if (hardwareCode.isNullOrBlank()) return@withContext rest
+        return@withContext rest.filter { it.hardwareSupport?.equals(hardwareCode, ignoreCase = true) == true }
     }
 }

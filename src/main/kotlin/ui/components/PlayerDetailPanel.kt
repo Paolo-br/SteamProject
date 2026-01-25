@@ -10,9 +10,13 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
+import androidx.compose.material.Card
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ArrayNode
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,10 +55,48 @@ fun PlayerDetailPanel(
         if (selectedPlayerId == null) {
             PlayerDetailPlaceholder()
         } else {
-            val playerState by produceState<Player?>(initialValue = null, selectedPlayerId) {
-                value = try {
-                    ServiceLocator.dataService.getPlayer(selectedPlayerId!!)
-                } catch (_: Exception) { null }
+            var playerState by remember { mutableStateOf<Player?>(null) }
+            var libraryState by remember { mutableStateOf<List<Map<String, Any?>>>(emptyList()) }
+
+            // Poll player info once and poll library periodically
+            LaunchedEffect(selectedPlayerId) {
+                if (selectedPlayerId == null) {
+                    playerState = null
+                    libraryState = emptyList()
+                } else {
+                    // initial load of player
+                    playerState = try {
+                        ServiceLocator.dataService.getPlayer(selectedPlayerId!!)
+                    } catch (_: Exception) { null }
+
+                    // periodic polling of player's library via REST endpoint (every 2s)
+                    while (true) {
+                        try {
+                            val url = java.net.URL("http://localhost:8080/api/players/${selectedPlayerId}/library")
+                            val txt = withContext(Dispatchers.IO) { url.readText() }
+                            val mapper = ObjectMapper()
+                            val node = mapper.readTree(txt)
+                            if (node != null && node.isArray) {
+                                val list = mutableListOf<Map<String, Any?>>()
+                                for (n in node) {
+                                    val m = mutableMapOf<String, Any?>()
+                                    m["gameId"] = n.get("gameId")?.asText()
+                                    m["gameName"] = n.get("gameName")?.asText()
+                                    m["purchaseDate"] = n.get("purchaseDate")?.asText()
+                                    m["playtime"] = n.get("playtime")?.asInt(0)
+                                    m["platform"] = n.get("platform")?.asText() ?: n.get("platform")?.asText(null)
+                                    list.add(m)
+                                }
+                                libraryState = list
+                            } else {
+                                libraryState = emptyList()
+                            }
+                        } catch (_: Exception) {
+                            // ignore network errors and keep previous state
+                        }
+                        kotlinx.coroutines.delay(2000)
+                    }
+                }
             }
 
             if (playerState == null) {
@@ -62,14 +104,14 @@ fun PlayerDetailPanel(
                     Text(text = "Chargement...", color = Color.Gray)
                 }
             } else {
-                PlayerDetailContent(playerState!!)
+                PlayerDetailContent(playerState!!, libraryState)
             }
         }
     }
 }
 
 @Composable
-private fun PlayerDetailContent(player: Player) {
+private fun PlayerDetailContent(player: Player, libraryState: List<Map<String, Any?>>) {
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFEEEEEE)), contentAlignment = Alignment.Center) {
@@ -91,20 +133,51 @@ private fun PlayerDetailContent(player: Player) {
 
         // Statistiques & historique
         DetailRow("Inscription:", player.registrationDate ?: "-")
-        DetailRow("Jeux possédés:", (player.library.size).toString())
+        DetailRow("Jeux possédés:", libraryState.size.toString())
         DetailRow("Temps de jeu (total):", player.totalPlaytime?.toString()?.plus(" h") ?: "-")
         DetailRow("Dernière évaluation:", player.lastEvaluationDate ?: "-")
         DetailRow("Nombre évaluations:", player.evaluationsCount?.toString() ?: "-")
 
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "Historique des jeux (extrait)", style = MaterialTheme.typography.subtitle2, color = Color.DarkGray)
+        Text(text = "Bibliothèque", style = MaterialTheme.typography.subtitle2, color = Color.DarkGray)
         Spacer(modifier = Modifier.height(4.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            player.library.take(4).forEach {
-                val playDisplay = if (it.playtime > 0) "${it.playtime}h" else "-"
-                Text(text = "• ${it.gameName} ($playDisplay)")
+
+        // Table: Jeu | Plateforme | Temps de jeu
+        Card(modifier = Modifier.fillMaxWidth(), elevation = 1.dp) {
+            Column {
+                Row(modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF5F5F5))
+                    .padding(12.dp)) {
+                    Text(text = "Jeu", modifier = Modifier.weight(2f), fontWeight = FontWeight.Bold)
+                    Text(text = "Plateforme", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                    Text(text = "Temps de jeu", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                }
+
+                if (libraryState.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                        Text(text = "Aucun jeu dans la bibliothèque", color = Color.Gray)
+                    }
+                } else {
+                    Column {
+                        libraryState.forEach { entry ->
+                            Row(modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp)) {
+                                Text(text = (entry["gameName"] as? String) ?: "-", modifier = Modifier.weight(2f))
+                                Text(text = (entry["platform"] as? String) ?: "-", modifier = Modifier.weight(1f))
+                                val play = when (val p = entry["playtime"]) {
+                                    is Int -> p
+                                    is Number -> p.toInt()
+                                    else -> 0
+                                }
+                                Text(text = if (play > 0) "${play} h" else "-", modifier = Modifier.weight(1f))
+                            }
+                            Divider()
+                        }
+                    }
+                }
             }
-            if (player.library.isEmpty()) Text(text = "Aucun jeu dans la bibliothèque", color = Color.Gray)
         }
     }
 }

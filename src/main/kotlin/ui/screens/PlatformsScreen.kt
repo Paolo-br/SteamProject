@@ -27,6 +27,7 @@ import org.example.services.api.PlatformStats
 import org.example.services.ServiceLocator
 import org.example.state.NavigationState
 import org.example.ui.navigation.Screen
+import kotlinx.serialization.json.*
 
 /**
  * Écran de filtrage par plateforme de distribution.
@@ -58,7 +59,33 @@ fun PlatformsScreen(
     // Filtrage par plateforme de distribution sélectionnée
     LaunchedEffect(selectedPlatform) {
         isLoading = true
-        games = dataService.filterByDistributionPlatform(selectedPlatform?.id)
+        val result: List<Game> = if (selectedPlatform == null) {
+            dataService.filterByDistributionPlatform(null)
+        } else {
+            val sp = selectedPlatform
+            if (sp == null) {
+                dataService.filterByDistributionPlatform(null)
+            } else {
+                try {
+                    val url = java.net.URL("http://localhost:8080/api/platforms/${sp.id}/catalog")
+                    val text = url.readText()
+                    val json = Json.parseToJsonElement(text)
+                    if (json is JsonArray) {
+                        json.mapNotNull { elem ->
+                            try {
+                                val obj = elem.jsonObject
+                                val id = obj["gameId"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                                val name = obj["gameName"]?.jsonPrimitive?.content ?: ""
+                                Game(id = id, name = name)
+                            } catch (_: Exception) { null }
+                        }
+                    } else emptyList()
+                } catch (_: Exception) {
+                    dataService.filterByDistributionPlatform(sp.id)
+                }
+            }
+        }
+        games = result
         isLoading = false
     }
 
@@ -178,11 +205,9 @@ fun PlatformsScreen(
                 elevation = 4.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    val title = selectedPlatform?.let { "Jeux sur ${it.name} (${games.size})" } ?: "Tous les jeux (${games.size})"
                     Text(
-                        text = if (selectedPlatform != null) 
-                            "Jeux sur ${selectedPlatform!!.name} (${games.size})" 
-                        else 
-                            "Tous les jeux (${games.size})",
+                        text = title,
                         style = MaterialTheme.typography.h6
                     )
                     Spacer(modifier = Modifier.height(8.dp))

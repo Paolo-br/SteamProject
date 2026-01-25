@@ -74,5 +74,120 @@ docker-compose ps
 - Docker UI inaccessible depuis conteneur (Windows) → exécuter l'UI localement via `./gradlew run` ; exécution GUI dans Docker nécessite WSL2+X server ou VNC (non recommandée pour la majorité des utilisateurs).
 
 
+**Kafka local (test rapide)**
+
+- Démarrer la stack Kafka (Zookeeper, Kafka, Schema Registry) :
+
+```powershell
+docker-compose up -d
+```
+
+- Générer les classes Avro (SpecificRecord) et compiler le projet :
+
+```powershell
+./gradlew.bat generateAvroJava classes --no-daemon
+```
+
+- (Optionnel) Créer le topic de test `purchase.events` :
+
+```powershell
+# exécuter dans le conteneur Kafka
+# Option A: créer depuis l'hôte via le conteneur (recommandé)
+docker-compose exec kafka \
+	kafka-topics --create --topic purchase.events \
+	--partitions 3 --replication-factor 1 --if-not-exists \
+	--bootstrap-server localhost:9092
+
+# Option B: ouvrir un shell dans le conteneur et exécuter la commande (si nécessaire)
+docker exec -it <kafka_container_name> bash
+# puis dans le conteneur :
+/usr/bin/kafka-topics --create --topic purchase.events --bootstrap-server kafka:29092 --replication-factor 1 --partitions 3
+```
+
+- Lancer le consumer (écoute en continu) :
+
+```powershell
+./gradlew.bat runPurchaseConsumer --no-daemon
+```
+
+- Dans un autre terminal, envoyer un événement de test :
+
+- Dans un autre terminal, pour des tests contrôlés utilisez un utilitaire d'administration :
+
+```powershell
+# Exemple : créer un joueur via l'utilitaire admin (contrôlé)
+./gradlew.bat runEnsurePlayer --no-daemon
+# Pour la publication de jeux, utilisez les workflows d'édition ou l'outil d'administration dédié.
+```
+
+- Variables d'environnement :
+	- `KAFKA_BOOTSTRAP_SERVERS` (par défaut `localhost:9092`)
+	- `SCHEMA_REGISTRY_URL` (par défaut `http://localhost:8081`)
+
+Ces étapes permettent à un évaluateur de démarrer rapidement l'infrastructure et de vérifier l'envoi/réception d'événements métier.
+
+**Flux validé (Kafka → Streams projection → REST → UI)**
+
+Ces étapes reproduisent la procédure que nous avons validée localement — elles démarrent la stack, génèrent les classes Avro, lancent l'application Streams qui expose un endpoint REST, puis l'UI Compose Desktop qui interroge cet endpoint.
+
+1) Démarrer Docker et vérifier les services
+
+```powershell
+docker-compose up -d
+docker-compose ps
+docker-compose logs -f kafka
+```
+
+2) Générer Avro et compiler
+
+```powershell
+./gradlew.bat generateAvroJava classes --no-daemon
+```
+
+3) Créer le topic (si non créé)
+
+```powershell
+docker-compose exec kafka \
+	kafka-topics --create --topic purchase.events \
+	--partitions 3 --replication-factor 1 --if-not-exists \
+	--bootstrap-server localhost:9092
+```
+
+4) Lancer l'application Streams + REST (garder le terminal ouvert)
+
+```powershell
+./gradlew.bat runStreamsRest --no-daemon
+```
+
+5) Dans un autre terminal, lancer l'UI (Compose Desktop)
+
+```powershell
+./gradlew.bat run --no-daemon
+```
+
+6) Ouvrir l'UI, sélectionner un joueur, puis envoyer événements de test depuis un 3ème terminal :
+
+```powershell
+# Pour générer des événements contrôlés en local, utilisez les utilitaires d'administration
+# (par ex. `runEnsurePlayer`) ou importez des flux réels depuis les pipelines d'ingestion.
+./gradlew.bat runEnsurePlayer --no-daemon
+```
+
+7) Vérifier la projection depuis la ligne de commande (ou via l'UI) :
+
+```powershell
+curl.exe http://localhost:8080/api/players/player-1/library
+
+# ou en PowerShell:
+Invoke-RestMethod -Uri 'http://localhost:8080/api/players/player-1/library'
+```
+
+Remarques:
+- Gardez le terminal où `runStreamsRest` tourne ouvert — il expose le endpoint REST sur le port `8080`.
+- L'UI interroge automatiquement le REST pour remplir la bibliothèque du joueur.
+
+
+
+
 
 

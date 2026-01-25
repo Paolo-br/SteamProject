@@ -34,8 +34,15 @@ dependencies {
 
     // Kafka / Confluent / Jackson nécessaires pour le backend
     implementation("org.apache.kafka:kafka-clients:3.6.1")
+    implementation("org.apache.kafka:kafka-streams:3.6.1")
     implementation("io.confluent:kafka-avro-serializer:7.4.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+    // Jackson Kotlin module to support `jacksonObjectMapper()` and Kotlin generic readValue<T>()
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
+    // Reflection is required by some Jackson Kotlin features
+    implementation("org.jetbrains.kotlin:kotlin-reflect:1.8.22")
+    // Simple SLF4J binding for development / readable logs
+    implementation("org.slf4j:slf4j-simple:1.7.36")
 
     testImplementation(kotlin("test"))
     // Data faker for generating fake players/publishers in Java service
@@ -74,4 +81,71 @@ compose.desktop {
             packageVersion = "1.0.0"    // version stable obligatoire pour DMG/MSI/DEB
         }
     }
+}
+
+// Test producers removed from main workflow. Use admin tools or tools/test folder.
+
+// NOTE: Test-only runner tasks that previously sent synthetic or hardcoded
+// events have been removed from the main workflow to keep the project
+// event-driven with real ingestion. Move any Test*Producer utilities to
+// a `tools/` or `admin/` folder if interactive runners are required.
+
+tasks.register<JavaExec>("runPurchaseConsumer") {
+    group = "application"
+    description = "Run PurchaseEventConsumer to consume purchase.events"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.consumer.PlayerConsumerApp")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runUserLibraryStreams") {
+    group = "application"
+    description = "Run Kafka Streams app for user-library projection"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.streams.UserLibraryStreams")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPublisherConsumer") {
+    group = "application"
+    description = "Run PublisherConsumer to consume game released events"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.consumer.PublisherConsumerApp")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPlatformConsumer") {
+    group = "application"
+    description = "Run PlatformConsumer to consume platform catalog events"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.consumer.PlatformConsumerApp")
+    dependsOn("generateAvroJava", "classes")
+}
+
+// Test producers removed from main workflow. Use admin tools or tools/test folder.
+
+tasks.register<JavaExec>("runEnsurePlayer") {
+    group = "application"
+    description = "Send PlayerCreatedEvent for a given player id (or default)"
+    classpath = sourceSets["main"].runtimeClasspath
+    // Admin tool moved to tools/admin package to keep admin utilities out of main artifact
+    mainClass.set("tools.admin.EnsurePlayerProducer")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runStreamsRest") {
+    group = "application"
+    description = "Run minimal REST service exposing the user-library projection"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.streams.StreamsRestService")
+    dependsOn("generateAvroJava", "classes")
+}
+
+// Run the small Purchase REST service (uses Jackson on the runtime classpath)
+tasks.register<JavaExec>("runPurchaseRest") {
+    group = "application"
+    description = "Run PurchaseRestService (HTTP endpoint for player library)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.consumer.PurchaseRestService")
+    dependsOn("generateAvroJava", "classes")
 }

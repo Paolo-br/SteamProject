@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "GameSessionEvent",
+  "doc": "Événement de session de jeu d'un joueur",
+  "fields": [
+    { "name": "sessionId", "type": "string" },
+    { "name": "gameId", "type": "string" },
+    { "name": "gameName", "type": "string" },
+    { "name": "playerId", "type": "string" },
+    { "name": "playerUsername", "type": "string" },
+    { "name": "sessionDuration", "type": "int" },
+    { "name": "sessionType", "type": { "type": "enum", "name": "SessionType", "symbols": ["FIRST_LAUNCH","CASUAL","MARATHON","POST_PATCH"] } },
+    { "name": "timestamp", "type": "long", "default": 0 }
+  ]
+}

@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import org.example.model.Game
 import org.example.model.Publisher
 import org.example.services.ServiceLocator
+import kotlinx.serialization.json.*
 
 /**
  * Panneau de detail d'un editeur selectionne.
@@ -65,8 +66,21 @@ fun EditorDetailPanel(
             val gamesState by produceState(initialValue = emptyList<Game>(), pubState) {
                 value = pubState?.let { pub ->
                     try {
-                        // Récupère le catalogue et filtre par publisherName pour compatibilité
-                        ServiceLocator.dataService.getCatalog().filter { it.publisherName == pub.name }
+                        // Call REST projection for publisher's published games
+                        val url = java.net.URL("http://localhost:8080/api/publishers/${pub.id}/games")
+                        val text = url.readText()
+                        val json = kotlinx.serialization.json.Json.parseToJsonElement(text)
+                        if (json is kotlinx.serialization.json.JsonArray) {
+                            json.mapNotNull { elem ->
+                                try {
+                                    val obj = elem.jsonObject
+                                    val id = obj["gameId"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                                    val name = obj["gameName"]?.jsonPrimitive?.content ?: ""
+                                    val year = obj["releaseYear"]?.jsonPrimitive?.intOrNull
+                                    Game(id = id, name = name, releaseYear = year)
+                                } catch (_: Exception) { null }
+                            }
+                        } else emptyList()
                     } catch (_: Exception) { emptyList() }
                 } ?: emptyList()
             }

@@ -5,6 +5,12 @@
   "namespace": "org.steamproject.events",
   "fields": [  
     {
+      "doc": "Identifiant unique de l'événement (UUID) pour déduplication",
+      "type": "string",
+      "name": "eventId",
+      "default": ""
+    },
+    {
       "doc": "Timestamp de l'événement (millisecondes depuis epoch)",
       "default": 0,
       "type": "long",
@@ -34,6 +40,12 @@
       "doc": "Plateforme de jeu (PC, PS4, Xbox, etc.)",
       "type": "string",
       "name": "platform"
+    },
+    {
+      "doc": "Liste des plateformes de distribution/availability (ex: [\"Steam\", \"Epic\"])",
+      "type": { "type": "array", "items": "string" },
+      "name": "platforms",
+      "default": []
     },
     {
       "doc": "Nom de l'éditeur",

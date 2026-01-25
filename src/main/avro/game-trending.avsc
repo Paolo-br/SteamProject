@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "GameTrendingEvent",
+  "doc": "Événement de tendance/alerte de popularité",
+  "fields": [
+    { "name": "gameId", "type": "string" },
+    { "name": "gameName", "type": "string" },
+    { "name": "trendType", "type": { "type": "enum", "name": "TrendType", "symbols": ["RISING_STAR","TOP_SELLER","HIGHLY_RATED","DECLINING","CONTROVERSIAL"] } },
+    { "name": "metric", "type": "string" },
+    { "name": "changePercentage", "type": "double" },
+    { "name": "message", "type": "string" },
+    { "name": "timestamp", "type": "long", "default": 0 }
+  ]
+}

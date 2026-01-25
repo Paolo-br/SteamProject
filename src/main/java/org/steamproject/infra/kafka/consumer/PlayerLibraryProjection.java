@@ -1,0 +1,47 @@
+package org.steamproject.infra.kafka.consumer;
+
+import org.steamproject.model.GameOwnership;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+
+public class PlayerLibraryProjection {
+    private static final PlayerLibraryProjection INSTANCE = new PlayerLibraryProjection();
+    private final Map<String, List<GameOwnership>> store = new ConcurrentHashMap<>();
+    // Track processed eventIds to support de-duplication (at-least-once semantics)
+    private final java.util.Set<String> seenEventIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private PlayerLibraryProjection() {}
+
+    public static PlayerLibraryProjection getInstance() {
+        return INSTANCE;
+    }
+
+    public void addOwnership(String playerId, GameOwnership ownership) {
+        store.compute(playerId, (k, list) -> {
+            if (list == null) return Collections.singletonList(ownership);
+            java.util.List<GameOwnership> newList = new java.util.ArrayList<>(list);
+            newList.add(ownership);
+            return Collections.unmodifiableList(newList);
+        });
+    }
+
+    /**
+     * Atomically mark an eventId as seen. Returns true if this eventId was not seen before.
+     */
+    public boolean markEventIfNew(String eventId) {
+        if (eventId == null || eventId.isEmpty()) return true; // treat missing ids as always new
+        return seenEventIds.add(eventId);
+    }
+
+    public List<GameOwnership> getLibrary(String playerId) {
+        return store.getOrDefault(playerId, Collections.emptyList());
+    }
+
+    public Map<String, List<GameOwnership>> snapshot() {
+        return store.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+}

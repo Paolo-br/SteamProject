@@ -10,6 +10,12 @@
       "doc": "Identifiant unique de l'achat"
     },
     {
+      "doc": "Identifiant unique de l'événement (UUID) pour déduplication",
+      "type": "string",
+      "name": "eventId",
+      "default": ""
+    },
+    {
       "name": "gameId",
       "type": "string",
       "doc": "Identifiant du jeu acheté"
@@ -40,6 +46,22 @@
       "doc": "Plateforme du jeu"
     },
     {
+      "name": "publisherId",
+      "type": "string",
+      "doc": "Identifiant de l'éditeur (optionnel)",
+      "default": ""
+    },
+    {
+      "name": "region",
+      "type": {
+        "type": "enum",
+        "name": "SalesRegion",
+        "symbols": ["NA", "EU", "JP", "OTHER"]
+      },
+      "doc": "Région des ventes",
+      "default": "OTHER"
+    },
+    {
       "name": "timestamp",
       "type": "long",
       "default": 0,
@@ -47,4 +69,3 @@
     }
   ]
 }
-

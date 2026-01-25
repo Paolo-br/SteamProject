@@ -53,6 +53,15 @@ class CatalogViewModel : BaseViewModel() {
 
     init {
         loadCatalog()
+        // Periodic polling to keep catalog in sync with backend projections (every 2s)
+        viewModelScope.launch {
+            while (true) {
+                try {
+                    loadCatalog()
+                } catch (_: Exception) {}
+                kotlinx.coroutines.delay(2000)
+            }
+        }
     }
 
 
