@@ -28,7 +28,7 @@ public class PurchaseRestService {
         playerThread.start();
 
         // Start PublisherConsumer in same JVM so PublisherProjection is populated
-        String pubTopic = System.getProperty("kafka.topic.pub", "game-released-events");
+        String pubTopic = System.getProperty("kafka.topic.pub", "game-released-events,game-published-events,game-updated-events,patch-published-events,dlc-published-events,game-version-deprecated-events,editor-responded-events");
         String pubGroup = System.getProperty("kafka.group.pub", "publisher-consumer-group-rest");
         Thread publisherThread = new Thread(() -> {
             try {
@@ -119,6 +119,24 @@ public class PurchaseRestService {
         public void handle(com.sun.net.httpserver.HttpExchange exchange) throws java.io.IOException {
             String path = exchange.getRequestURI().getPath();
             String[] parts = path.split("/");
+            // Support:
+            // - GET /api/publishers -> list all ingestion-backed publishers (metadata)
+            // - GET /api/publishers/{publisherId}/games -> list games for publisher
+            if ("/api/publishers".equals(path) || "/api/publishers/".equals(path)) {
+                try {
+                    var ingestion = new org.steamproject.ingestion.PublisherIngestion();
+                    java.util.List<org.steamproject.model.Publisher> ing = ingestion.readAll();
+                    String response = mapper.writeValueAsString(ing);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                    byte[] bytes = response.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (java.io.OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
+                } catch (Exception e) {
+                    exchange.sendResponseHeaders(500, -1);
+                }
+                return;
+            }
+
             // Expect: /api/publishers/{publisherId}/games
             if (parts.length >= 5 && "games".equals(parts[4])) {
                 String publisherId = parts[3];
@@ -237,6 +255,23 @@ public class PurchaseRestService {
                         if (publisherId != null) break;
                     }
                     m.put("publisherId", publisherId);
+
+                    // enrich with game metadata if available
+                    try {
+                        var gd = org.steamproject.infra.kafka.consumer.GameProjection.getInstance().getGame(p.length>0? p[0] : null);
+                        if (gd != null) {
+                            if (gd.get("genre") != null) m.put("genre", gd.get("genre"));
+                            if (gd.get("platform") != null && m.get("platform") == null) m.put("platform", gd.get("platform"));
+                            if (gd.get("price") != null) m.put("price", gd.get("price"));
+                            if (gd.get("initialVersion") != null) m.put("initialVersion", gd.get("initialVersion"));
+                            // include richer projection lists if available
+                            if (gd.get("versions") != null) m.put("versions", gd.get("versions"));
+                            if (gd.get("patches") != null) m.put("patches", gd.get("patches"));
+                            if (gd.get("dlcs") != null) m.put("dlcs", gd.get("dlcs"));
+                            if (gd.get("deprecatedVersions") != null) m.put("deprecatedVersions", gd.get("deprecatedVersions"));
+                            if (gd.get("incidentResponses") != null) m.put("incidentResponses", gd.get("incidentResponses"));
+                        }
+                    } catch (Exception ex) { /* ignore enrichment failures */ }
                     out.add(m);
                 }
             });
@@ -259,6 +294,22 @@ public class PurchaseRestService {
                     m.put("releaseYear", p.length>2 && !p[2].isEmpty() ? Integer.parseInt(p[2]) : null);
                     m.put("platform", null);
                     m.put("publisherId", pubId);
+                    // enrich from game projection if present
+                    try {
+                        var gd = org.steamproject.infra.kafka.consumer.GameProjection.getInstance().getGame(gid);
+                        if (gd != null) {
+                            if (gd.get("genre") != null) m.put("genre", gd.get("genre"));
+                            if (gd.get("platform") != null) m.put("platform", gd.get("platform"));
+                            if (gd.get("price") != null) m.put("price", gd.get("price"));
+                            if (gd.get("initialVersion") != null) m.put("initialVersion", gd.get("initialVersion"));
+                            // include richer projection lists if available
+                            if (gd.get("versions") != null) m.put("versions", gd.get("versions"));
+                            if (gd.get("patches") != null) m.put("patches", gd.get("patches"));
+                            if (gd.get("dlcs") != null) m.put("dlcs", gd.get("dlcs"));
+                            if (gd.get("deprecatedVersions") != null) m.put("deprecatedVersions", gd.get("deprecatedVersions"));
+                            if (gd.get("incidentResponses") != null) m.put("incidentResponses", gd.get("incidentResponses"));
+                        }
+                    } catch (Exception ex) { /* ignore */ }
                     out.add(m);
                 }
             }

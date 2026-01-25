@@ -13,23 +13,8 @@ public class TestPublisherProducer {
         String gameId = UUID.randomUUID().toString();
         String pubId = "pub-test-1";
 
-        GameReleasedEvent evt = GameReleasedEvent.newBuilder()
-                .setTimestamp(Instant.now().toEpochMilli())
-                .setInitialVersion("1.0.0")
-                .setReleaseYear(2026)
-                .setInitialPrice(19.99)
-                .setGenre("Action")
-                .setEventId(UUID.randomUUID().toString())
-                .setPlatform("PC")
-                .setPlatforms(java.util.Arrays.asList("PC"))
-                .setPublisherName("TestPub")
-                .setPublisherId(pubId)
-                .setGameName("TestGame")
-                .setGameId(gameId)
-                .build();
-
-        PublisherProducer p = new PublisherProducer(bootstrap, sr, topic);
-        p.sendGameReleased(gameId, evt).get();
+        PublisherProducer p = new PublisherProducer(bootstrap, sr);
+        p.publishGame(gameId, "TestGame", pubId, "TestPub", 2026, "PC", java.util.Arrays.asList("PC"), "1.0.0", 19.99, "Action").get();
         System.out.println("Sent GameReleasedEvent gameId=" + gameId);
         p.close();
     }

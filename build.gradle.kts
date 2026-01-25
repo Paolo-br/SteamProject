@@ -149,3 +149,121 @@ tasks.register<JavaExec>("runPurchaseRest") {
     mainClass.set("org.steamproject.infra.kafka.consumer.PurchaseRestService")
     dependsOn("generateAvroJava", "classes")
 }
+
+// Convenience tasks for test producers located in tools/test
+tasks.register<JavaExec>("runTestPublisherProducer") {
+    group = "application"
+    description = "Run TestPublisherProducer: sends a GameReleasedEvent"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("tools.test.TestPublisherProducer")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runTestPlayerProducer") {
+    group = "application"
+    description = "Run TestPlayerProducer: sends PlayerRegisteredEvent + optional purchase"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("tools.test.TestPlayerProducer")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runTestPurchaseForPlayer") {
+    group = "application"
+    description = "Run TestPurchaseForPlayer: sends a GamePurchaseEvent for TEST_PLAYER_ID"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("tools.test.TestPurchaseForPlayer")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runTestEventProducer") {
+    group = "application"
+    description = "Run TestEventProducer: sends a simple GamePurchaseEvent"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("tools.test.TestEventProducer")
+    dependsOn("generateAvroJava", "classes")
+}
+
+// Real producer runners
+tasks.register<JavaExec>("runPublishGame") {
+    group = "application"
+    description = "Run real publisher producer app to emit GameReleasedEvent"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.PublisherProducerApp")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPublishEvent") {
+    group = "application"
+    description = "Run publisher events producer app to emit various publisher events (use -Devent.type)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.PublisherEventsProducerApp")
+    dependsOn("generateAvroJava", "classes")
+}
+
+// Convenience tasks to emit single event types to their dedicated topics
+tasks.register<JavaExec>("runPublishGamePublished") {
+    group = "application"
+    description = "Publish a GamePublishedEvent (to game-published-events)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.PublisherEventsProducerApp")
+    systemProperties = mapOf("event.type" to "published")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPublishGameUpdated") {
+    group = "application"
+    description = "Publish a GameUpdatedEvent (to game-updated-events)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.PublisherEventsProducerApp")
+    systemProperties = mapOf("event.type" to "updated")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPublishPatch") {
+    group = "application"
+    description = "Publish a PatchPublishedEvent (to patch-published-events)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.PublisherEventsProducerApp")
+    // Allow overriding the target game id via -PgameId=... when invoking Gradle
+    val extra: Map<String, Any> = if (project.hasProperty("gameId")) mapOf("game.id" to project.property("gameId").toString()) else mapOf()
+    systemProperties = mapOf("event.type" to "patch") + extra
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPublishDlc") {
+    group = "application"
+    description = "Publish a DlcPublishedEvent (to dlc-published-events)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.PublisherEventsProducerApp")
+    val extraDlc: Map<String, Any> = if (project.hasProperty("gameId")) mapOf("game.id" to project.property("gameId").toString()) else mapOf()
+    systemProperties = mapOf("event.type" to "dlc") + extraDlc
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPublishVersionDeprecated") {
+    group = "application"
+    description = "Publish a GameVersionDeprecatedEvent (to game-version-deprecated-events)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.PublisherEventsProducerApp")
+    val extraDep: Map<String, Any> = if (project.hasProperty("gameId")) mapOf("game.id" to project.property("gameId").toString()) else mapOf()
+    systemProperties = mapOf("event.type" to "deprecate") + extraDep
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPublishEditorResponded") {
+    group = "application"
+    description = "Publish an EditorRespondedToIncidentEvent (to editor-responded-events)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.PublisherEventsProducerApp")
+    val extraResp: Map<String, Any> = if (project.hasProperty("gameId")) mapOf("game.id" to project.property("gameId").toString()) else mapOf()
+    systemProperties = mapOf("event.type" to "respond") + extraResp
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runSendPurchase") {
+    group = "application"
+    description = "Run real GamePurchaseProducerApp to emit GamePurchaseEvent"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.GamePurchaseProducerApp")
+    dependsOn("generateAvroJava", "classes")
+}

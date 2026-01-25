@@ -11,7 +11,7 @@ import org.example.services.ServiceLocator
  * ViewModel pour l'écran Patchs.
  *
  * Version front-only :
- * - Charge l'historique des patchs via MockDataService
+ * - Charge l'historique des patchs via projection REST (ProjectionDataService)
  * - Ne dépend plus d'événements temps réel Kafka
  */
 class PatchesViewModel : BaseViewModel() {

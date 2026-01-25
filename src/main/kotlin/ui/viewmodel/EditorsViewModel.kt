@@ -11,7 +11,7 @@ import org.example.services.ServiceLocator
  * ViewModel pour l'écran Éditeurs.
  *
  * Responsabilités :
- * - Charger la liste des éditeurs depuis MockDataService
+ * - Charger la liste des éditeurs depuis les projections REST (ProjectionDataService)
  * - Exposer l'état de chargement (isLoading)
  * - Gérer la sélection d'un éditeur
  * - Fournir les données aux composants UI

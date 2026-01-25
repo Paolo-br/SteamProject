@@ -11,9 +11,9 @@ import org.example.services.ServiceLocator
  * ViewModel pour l'écran Catalogue.
  *
  * Version front-only :
- * - Charge le catalogue de jeux via MockDataService
+ * - Charge le catalogue de jeux via ProjectionDataService (projections REST)
  * - Gère la recherche/filtrage
- * - Ne dépend plus d'événements temps réel Kafka
+ * - Affiche uniquement les données issues des projections
  */
 class CatalogViewModel : BaseViewModel() {
 

@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "GamePublishedEvent",
+  "namespace": "org.steamproject.events",
+  "doc": "Published when an editor publishes a new game",
+  "fields": [
+    {"name": "gameId", "type": "string"},
+    {"name": "publisherId", "type": "string"},
+    {"name": "gameName", "type": "string"},
+    {"name": "platform", "type": "string"},
+    {"name": "genre", "type": ["null", "string"], "default": null},
+    {"name": "initialVersion", "type": "string"},
+    {"name": "initialPrice", "type": "double"},
+    {"name": "releaseTimestamp", "type": "long", "logicalType": "timestamp-millis"}
+  ]
+}

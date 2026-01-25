@@ -10,7 +10,7 @@ import org.example.services.ServiceLocator
  * ViewModel pour l'écran Incidents & Crashs.
  *
  * Version front-only :
- * - Charge les incidents de tous les jeux via MockDataService
+ * - Charge les incidents via les projections REST (ProjectionDataService)
  * - Ne dépend plus d'événements Kafka temps réel
  */
 class IncidentsViewModel : BaseViewModel() {
