@@ -124,13 +124,12 @@ tasks.register<JavaExec>("runPlatformConsumer") {
 
 // Test producers removed from main workflow. Use admin tools or tools/test folder.
 
-tasks.register<JavaExec>("runEnsurePlayer") {
+tasks.register<JavaExec>("runCreatePlayer") {
     group = "application"
     description = "Send PlayerCreatedEvent for a given player id (or default)"
     classpath = sourceSets["main"].runtimeClasspath
-    // Admin tool moved to tools/admin package to keep admin utilities out of main artifact
-    // Use the EnsurePlayerProducer present in main sources so task works in all workspaces
-    mainClass.set("org.steamproject.infra.kafka.producer.EnsurePlayerProducer")
+    // Admin tool moved to tools/admin; use the combined `runPlayerProducer` task.
+    mainClass.set("org.steamproject.infra.kafka.producer.PlayerProducerApp")
     dependsOn("generateAvroJava", "classes")
 }
 
@@ -239,5 +238,13 @@ tasks.register<JavaExec>("runSendPurchase") {
     description = "Run real GamePurchaseProducerApp to emit GamePurchaseEvent"
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("org.steamproject.infra.kafka.producer.GamePurchaseProducerApp")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPlayerProducer") {
+    group = "application"
+    description = "Run PlayerProducerApp (mode=create|purchase via -Dmode)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.producer.PlayerProducerApp")
     dependsOn("generateAvroJava", "classes")
 }

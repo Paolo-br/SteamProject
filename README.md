@@ -117,7 +117,7 @@ Exemple — créer un joueur de test :
 
 ```powershell
 $Env:TEST_PLAYER_ID = "player-001"
-.\gradlew.bat runEnsurePlayer --no-daemon
+.\gradlew.bat runCreatePlayer --no-daemon
 ```
 
 Exemple — envoyer un achat de test :
