@@ -129,7 +129,8 @@ tasks.register<JavaExec>("runEnsurePlayer") {
     description = "Send PlayerCreatedEvent for a given player id (or default)"
     classpath = sourceSets["main"].runtimeClasspath
     // Admin tool moved to tools/admin package to keep admin utilities out of main artifact
-    mainClass.set("tools.admin.EnsurePlayerProducer")
+    // Use the EnsurePlayerProducer present in main sources so task works in all workspaces
+    mainClass.set("org.steamproject.infra.kafka.producer.EnsurePlayerProducer")
     dependsOn("generateAvroJava", "classes")
 }
 
@@ -151,37 +152,7 @@ tasks.register<JavaExec>("runPurchaseRest") {
 }
 
 // Convenience tasks for test producers located in tools/test
-tasks.register<JavaExec>("runTestPublisherProducer") {
-    group = "application"
-    description = "Run TestPublisherProducer: sends a GameReleasedEvent"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("tools.test.TestPublisherProducer")
-    dependsOn("generateAvroJava", "classes")
-}
-
-tasks.register<JavaExec>("runTestPlayerProducer") {
-    group = "application"
-    description = "Run TestPlayerProducer: sends PlayerRegisteredEvent + optional purchase"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("tools.test.TestPlayerProducer")
-    dependsOn("generateAvroJava", "classes")
-}
-
-tasks.register<JavaExec>("runTestPurchaseForPlayer") {
-    group = "application"
-    description = "Run TestPurchaseForPlayer: sends a GamePurchaseEvent for TEST_PLAYER_ID"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("tools.test.TestPurchaseForPlayer")
-    dependsOn("generateAvroJava", "classes")
-}
-
-tasks.register<JavaExec>("runTestEventProducer") {
-    group = "application"
-    description = "Run TestEventProducer: sends a simple GamePurchaseEvent"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("tools.test.TestEventProducer")
-    dependsOn("generateAvroJava", "classes")
-}
+// Test producer tasks removed to enforce ingestion-driven data.
 
 // Real producer runners
 tasks.register<JavaExec>("runPublishGame") {
@@ -189,6 +160,9 @@ tasks.register<JavaExec>("runPublishGame") {
     description = "Run real publisher producer app to emit GameReleasedEvent"
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("org.steamproject.infra.kafka.producer.PublisherProducerApp")
+    // Allow overriding target game via -PgameId when invoking Gradle
+    val extra: Map<String, Any> = if (project.hasProperty("gameId")) mapOf("game.id" to project.property("gameId").toString()) else mapOf()
+    systemProperties = extra
     dependsOn("generateAvroJava", "classes")
 }
 

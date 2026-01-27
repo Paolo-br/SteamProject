@@ -1,7 +1,10 @@
 ﻿package org.example.ui.components
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Divider
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
@@ -14,8 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.example.model.Patch
 @Composable
-fun RecentPatchActivity(modifier: Modifier = Modifier) {
+fun RecentPatchActivity(modifier: Modifier = Modifier, patches: List<Patch> = emptyList()) {
     Column(modifier = modifier.fillMaxWidth().border(1.dp, Color.LightGray).background(Color.White).padding(24.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
             Icon(imageVector = Icons.Default.Build, contentDescription = null, tint = Color.DarkGray, modifier = Modifier.size(24.dp))
@@ -23,26 +27,28 @@ fun RecentPatchActivity(modifier: Modifier = Modifier) {
         }
         Divider(color = Color.LightGray, thickness = 1.dp)
         Spacer(modifier = Modifier.height(24.dp))
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            repeat(4) { ActivityItemPlaceholder() }
+
+        if (patches.isEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(text = "-", style = MaterialTheme.typography.body2, color = Color.Gray)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)) {
+                items(patches) { p ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = "${p.gameName} — ${p.newVersion}", style = MaterialTheme.typography.subtitle2)
+                            Text(text = "${p.platform} • ${p.type.name}", style = MaterialTheme.typography.caption, color = Color.Gray)
+                        }
+                        Text(text = p.releaseDate, style = MaterialTheme.typography.caption, color = Color.Gray)
+                    }
+                    Divider(color = Color(0xFFF0F0F0), thickness = 1.dp)
+                }
+            }
         }
     }
 }
 @Composable
 private fun ActivityItemPlaceholder() {
-    Row(modifier = Modifier.fillMaxWidth().background(Color(0xFFFAFAFA)).border(1.dp, Color(0xFFE8E8E8)).padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
-            Box(modifier = Modifier.width(180.dp).height(20.dp).background(Color(0xFFE0E0E0)))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(modifier = Modifier.width(80.dp).height(14.dp).background(Color(0xFFE8E8E8)))
-                Box(modifier = Modifier.width(60.dp).height(14.dp).background(Color(0xFFE8E8E8)))
-                Box(modifier = Modifier.width(70.dp).height(14.dp).background(Color(0xFFE8E8E8)))
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.width(80.dp).height(24.dp).background(Color(0xFFE0E0E0)))
-            Box(modifier = Modifier.width(60.dp).height(16.dp).background(Color(0xFFE8E8E8)))
-        }
-    }
+    // kept for compatibility; no longer used
 }

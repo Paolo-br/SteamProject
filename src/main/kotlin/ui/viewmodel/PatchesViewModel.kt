@@ -29,6 +29,20 @@ class PatchesViewModel : BaseViewModel() {
     val patches: List<Patch>
         get() = _uiState.value.data ?: emptyList()
 
+    // Counts by patch type
+    val fixesCount: Int
+        get() = patches.count { it.type == org.example.model.PatchType.FIX }
+
+    val addsCount: Int
+        get() = patches.count { it.type == org.example.model.PatchType.ADD }
+
+    val optimizationsCount: Int
+        get() = patches.count { it.type == org.example.model.PatchType.OPTIMIZATION }
+
+    // Recent activity (most recent patches by timestamp)
+    val recentPatches: List<Patch>
+        get() = patches.sortedByDescending { it.timestamp }.take(6)
+
     val errorMessage: String?
         get() = _uiState.value.errorMessage
 

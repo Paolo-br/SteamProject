@@ -17,10 +17,7 @@ import java.nio.charset.StandardCharsets;
 
 public class StreamsRestService {
     public static void main(String[] args) throws Exception {
-        // Start the streams instance and keep a reference for interactive queries
         org.apache.kafka.streams.KafkaStreams streams = UserLibraryStreams.startStreams();
-
-        // Wait until the store is queryable (simple backoff)
         int attempts = 0;
         while (attempts < 10) {
             try {

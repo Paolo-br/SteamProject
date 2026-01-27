@@ -154,6 +154,7 @@ fun CatalogScreen(
             else -> {
                 // Tableau de jeux — au clic on navigue vers l'écran de détails
                 GameTable(
+                    modifier = Modifier.fillMaxWidth().height(320.dp),
                     games = filteredGames,
                     selectedGameId = selectedGameId,
                     onGameSelected = { gameId ->
@@ -169,14 +170,14 @@ fun CatalogScreen(
 
 @Composable
 private fun GameTable(
+    modifier: Modifier = Modifier,
     games: List<Game>,
     selectedGameId: String?,
     onGameSelected: (String?) -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(320.dp),
+        modifier = modifier
+            .fillMaxWidth(),
         elevation = 2.dp,
         shape = RoundedCornerShape(8.dp)
     ) {
@@ -208,7 +209,7 @@ private fun GameTable(
                 }
             } else {
                 // Lignes du tableau
-                LazyColumn {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(games) { game ->
                         TableRow(
                             game = game,

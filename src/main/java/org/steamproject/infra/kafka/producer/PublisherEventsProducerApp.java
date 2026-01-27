@@ -29,10 +29,16 @@ public class PublisherEventsProducerApp {
             selected = games.get(rnd.nextInt(games.size()));
         }
 
-        String sampleGameId = selected != null ? selected.getId() : System.getProperty("game.id", "sample-game-" + Math.abs(rnd.nextInt()));
+        // If no ingested game is available or specified, do not publish sample games.
+        if (selected == null) {
+            System.err.println("No ingested game found or game.id not provided. Aborting — do not publish sample games.");
+            return;
+        }
+
+        String sampleGameId = selected.getId();
         String samplePub = System.getProperty("publisher.id", null);
-        String platform = selected != null ? (selected.getPlatform() == null ? System.getProperty("platform", "PC") : selected.getPlatform()) : System.getProperty("platform", "PC");
-        String genre = selected != null ? (selected.getGenre() == null ? "" : selected.getGenre()) : "";
+        String platform = selected.getPlatform() != null ? selected.getPlatform() : System.getProperty("platform", "PC");
+        String genre = selected.getGenre() != null ? selected.getGenre() : "";
 
         // try to map publisher id from ingestion if not provided
         if ((samplePub == null || samplePub.isEmpty()) && selected != null) {
@@ -47,7 +53,9 @@ public class PublisherEventsProducerApp {
 
         switch (type) {
             case "published":
-                p.publishGamePublished(sampleGameId, "Sample Game", samplePub, platform, "Action", "1.0.0", 29.99).get();
+                // Publish using ingested game's metadata when available
+                // Game ingestion does not provide version/price fields; use sensible defaults
+                p.publishGamePublished(sampleGameId, selected.getName(), samplePub, platform, genre == null ? "" : genre, "1.0.0", 0.0).get();
                 System.out.println("Sent GamePublishedEvent for " + sampleGameId);
                 break;
             case "updated":
@@ -59,8 +67,8 @@ public class PublisherEventsProducerApp {
                 break;
             case "patch":
                 String newV = "1.1." + rnd.nextInt(100);
-                String gameName = selected != null ? selected.getName() : "Sample Game";
-                String oldV = selected != null && selected.getYear() != null ? "1.0.0" : "1.0.0";
+                String gameName = selected.getName();
+                String oldV = "1.0.0";
                 p.publishPatch(sampleGameId, gameName, platform, oldV, newV, "Minor fixes").get();
                 System.out.println("Sent PatchPublishedEvent newVersion=" + newV + " for " + sampleGameId);
                 break;

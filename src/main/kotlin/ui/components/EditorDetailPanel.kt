@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.Divider
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
@@ -108,14 +110,7 @@ private fun PublisherDetailContent(pub: Publisher, games: List<Game>) {
         DetailRow("Plateformes:", pub.platforms.joinToString(", "))
         DetailRow("Genres:", pub.genres.joinToString(", "))
 
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(text = "Exemples de jeux (${games.size}) :", style = MaterialTheme.typography.subtitle2, color = Color.DarkGray)
-        Spacer(modifier = Modifier.height(8.dp))
-        Column(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            games.take(6).forEach { g ->
-                Text(text = "• ${g.name} (${g.releaseYear ?: "?"})", color = Color.Black)
-            }
-        }
+        // Examples removed as requested
     }
 }
 

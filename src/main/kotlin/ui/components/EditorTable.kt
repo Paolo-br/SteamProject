@@ -28,12 +28,18 @@ import org.example.model.Publisher
 fun EditorTable(
     modifier: Modifier = Modifier,
     publishers: List<Publisher> = emptyList(),
-    onEditorSelected: ((String?) -> Unit)? = null
+    onEditorSelected: ((String?) -> Unit)? = null,
+    visibleRows: Int = 5
 ) {
+    // Approximate heights for header and rows; tweak if you change paddings
+    val headerHeight = 56.dp
+    val rowHeight = 48.dp
+    val totalHeight = headerHeight + (rowHeight * visibleRows)
+
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .height(320.dp),
+            .height(totalHeight),
         elevation = 2.dp
     ) {
         Column {
@@ -50,7 +56,7 @@ fun EditorTable(
                     Text(text = "En attente des donnees...", style = MaterialTheme.typography.body2, color = Color.Gray)
                 }
             } else {
-                LazyColumn {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(publishers) { pub ->
                         Row(
                             modifier = Modifier

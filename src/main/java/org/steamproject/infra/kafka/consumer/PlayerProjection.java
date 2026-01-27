@@ -14,13 +14,15 @@ public class PlayerProjection {
 
     public static PlayerProjection getInstance() { return INSTANCE; }
 
-    public void upsert(String playerId, String username, String email, String registrationDate, long timestamp) {
+    public void upsert(String playerId, String username, String email, String registrationDate, long timestamp, Boolean gdprConsent, String gdprConsentDate) {
         java.util.Map<String, Object> map = new java.util.HashMap<>();
         map.put("id", playerId);
         map.put("username", username == null ? "" : username);
         map.put("email", email);
         map.put("registrationDate", registrationDate == null ? "" : registrationDate);
         map.put("timestamp", timestamp);
+        map.put("gdprConsent", gdprConsent == null ? Boolean.FALSE : gdprConsent);
+        map.put("gdprConsentDate", gdprConsentDate);
         store.put(playerId, Collections.unmodifiableMap(map));
     }
 

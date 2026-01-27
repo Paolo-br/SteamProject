@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 public class PlayerLibraryProjection {
     private static final PlayerLibraryProjection INSTANCE = new PlayerLibraryProjection();
     private final Map<String, List<GameOwnership>> store = new ConcurrentHashMap<>();
-    // Track processed eventIds to support de-duplication (at-least-once semantics)
     private final java.util.Set<String> seenEventIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private PlayerLibraryProjection() {}
@@ -29,11 +28,9 @@ public class PlayerLibraryProjection {
         });
     }
 
-    /**
-     * Atomically mark an eventId as seen. Returns true if this eventId was not seen before.
-     */
+
     public boolean markEventIfNew(String eventId) {
-        if (eventId == null || eventId.isEmpty()) return true; // treat missing ids as always new
+        if (eventId == null || eventId.isEmpty()) return true; 
         return seenEventIds.add(eventId);
     }
 

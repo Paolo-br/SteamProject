@@ -18,7 +18,10 @@ fun PatchDetailPanel(modifier: Modifier = Modifier, selectedPatchId: String? = n
         Divider(color = Color.LightGray, thickness = 1.dp)
         Spacer(modifier = Modifier.height(24.dp))
         if (selectedPatchId == null) {
-            PatchDetailPlaceholder()
+            // When none is selected, show a simple directive
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(text = "Sélectionnez un correctif", style = MaterialTheme.typography.subtitle1, color = Color.Gray)
+            }
         } else {
             Text(text = "Détails du correctif $selectedPatchId", color = Color.Gray)
         }
@@ -26,13 +29,7 @@ fun PatchDetailPanel(modifier: Modifier = Modifier, selectedPatchId: String? = n
 }
 @Composable
 private fun PatchDetailPlaceholder() {
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(text = "Sélectionnez un correctif", style = MaterialTheme.typography.subtitle1, fontWeight = FontWeight.Medium, color = Color.Gray)
-        Spacer(modifier = Modifier.height(16.dp))
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            repeat(4) { DetailSection(labels[it]) }
-        }
-    }
+    // kept for compatibility but no longer used
 }
 private val labels = listOf("Informations générales", "Notes de version", "Fichiers modifiés", "Statistiques de téléchargement")
 @Composable

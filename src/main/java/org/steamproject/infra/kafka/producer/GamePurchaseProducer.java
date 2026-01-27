@@ -10,6 +10,12 @@ import org.steamproject.events.GamePurchaseEvent;
 import java.util.Properties;
 import java.util.concurrent.Future;
 
+/**
+ * Producteur dédié aux événements d'achat de jeu.
+ *
+ * Encapsule la configuration Kafka/Avro et fournit une méthode simple pour
+ * publier des {@link org.steamproject.events.GamePurchaseEvent}.
+ */
 public class GamePurchaseProducer {
     private final KafkaProducer<String, Object> producer;
     private final String topic;
@@ -24,6 +30,13 @@ public class GamePurchaseProducer {
         this.producer = new KafkaProducer<>(props);
     }
 
+    /**
+     * Envoie un {@link GamePurchaseEvent} sur le topic configuré.
+     *
+     * @param key   clé du message (souvent l'ID du joueur)
+     * @param event événement d'achat à publier
+     * @return Future représentant l'envoi asynchrone
+     */
     public Future<RecordMetadata> send(String key, GamePurchaseEvent event) {
         ProducerRecord<String, Object> record = new ProducerRecord<>(topic, key, event);
         return producer.send(record);

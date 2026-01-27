@@ -1,8 +1,6 @@
 package org.steamproject.infra.kafka.consumer;
 
-/**
- * Small launcher for `PlayerConsumer` to be used by Gradle JavaExec task.
- */
+
 public class PlayerConsumerApp {
     public static void main(String[] args) {
         String bootstrap = System.getProperty("kafka.bootstrap", "localhost:9092");

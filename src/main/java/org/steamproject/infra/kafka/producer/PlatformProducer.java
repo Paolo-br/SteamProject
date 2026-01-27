@@ -7,7 +7,10 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import java.util.Properties;
 
 /**
- * Skeleton producer for platform-scoped events (e.g. GameAddedToCatalogEvent).
+ * Producteur pour événements liés à une plateforme de distribution.
+ *
+ * Exemples d'utilisation : envoyer des mises à jour de catalogue pour une
+ * plateforme particulière. Adapté pour de petits outils ou tests.
  */
 public class PlatformProducer {
     private final KafkaProducer<String, Object> producer;
@@ -28,6 +31,13 @@ public class PlatformProducer {
         producer.close();
     }
 
+    /**
+     * Envoie un événement de mise à jour de catalogue pour une plateforme.
+     *
+     * @param gameId identifiant du jeu (clé du message)
+     * @param evt    {@link org.steamproject.events.PlatformCatalogUpdateEvent} contenant les détails
+     * @return Future correspondant à l'envoi Kafka
+     */
     public java.util.concurrent.Future<org.apache.kafka.clients.producer.RecordMetadata> sendCatalogUpdate(String gameId, org.steamproject.events.PlatformCatalogUpdateEvent evt) {
         org.apache.kafka.clients.producer.ProducerRecord<String, Object> rec = new org.apache.kafka.clients.producer.ProducerRecord<>(topic, gameId, evt);
         return producer.send(rec);

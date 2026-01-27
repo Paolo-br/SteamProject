@@ -15,8 +15,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Properties;
 
+
 /**
- * Consumer dédié aux événements de players. Traite les `GamePurchaseEvent`.
+ * Consommateur pour les événements liés aux joueurs (achats, etc.).
+ *
+ * Ce consommateur désérialise les événements Avro et délègue le traitement
+ * des achats à la méthode {@link #handleGamePurchase(GamePurchaseEvent)}.
  */
 public class PlayerConsumer {
     private final KafkaConsumer<String, Object> consumer;
@@ -37,6 +41,11 @@ public class PlayerConsumer {
         this.consumer.subscribe(Collections.singletonList(topic));
     }
 
+    /**
+     * Démarre la boucle de consommation bloquante.
+     * Affiche un message sur la console et boucle en appelant régulièrement
+     * {@code consumer.poll(...)}.
+     */
     public void start() {
         System.out.println("PlayerConsumer started, listening to " + topic);
         try {
@@ -61,10 +70,15 @@ public class PlayerConsumer {
         }
     }
 
+    /**
+     * Traite un {@link GamePurchaseEvent} : marque l'événement pour éviter les
+     * doublons, transforme la donnée et met à jour la projection locale.
+     *
+     * @param evt événement d'achat reçu
+     */
     public void handleGamePurchase(GamePurchaseEvent evt) {
         try {
             String eventId = evt.getEventId() == null ? "" : evt.getEventId().toString();
-            // De-duplication: ignore if we've processed this eventId already
             if (!PlayerLibraryProjection.getInstance().markEventIfNew(eventId)) {
                 System.out.println("PlayerConsumer skipped duplicate eventId=" + eventId);
                 return;
@@ -73,7 +87,8 @@ public class PlayerConsumer {
             String playerId = evt.getPlayerId().toString();
             String purchaseDate = DateTimeFormatter.ISO_INSTANT
                     .format(Instant.ofEpochMilli(evt.getTimestamp()).atOffset(ZoneOffset.UTC));
-            GameOwnership go = new GameOwnership(evt.getGameId().toString(), evt.getGameName().toString(), purchaseDate);
+            double pricePaid = evt.getPricePaid();
+            GameOwnership go = new GameOwnership(evt.getGameId().toString(), evt.getGameName().toString(), purchaseDate, 0, null, pricePaid);
             PlayerLibraryProjection.getInstance().addOwnership(playerId, go);
             System.out.println("PlayerConsumer processed purchase for player=" + playerId + " game=" + evt.getGameId());
         } catch (Exception ex) {

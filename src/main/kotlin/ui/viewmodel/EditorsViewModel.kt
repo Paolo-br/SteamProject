@@ -40,6 +40,19 @@ class EditorsViewModel : BaseViewModel() {
     val errorMessage: String?
         get() = _uiState.value.errorMessage
 
+    // Recherche localisée côté ViewModel
+    private val _searchQuery: MutableState<String> = mutableStateOf("")
+    val searchQuery: State<String> = _searchQuery
+
+    fun updateSearchQuery(q: String) {
+        _searchQuery.value = q
+    }
+
+    /** Liste filtrée selon la requête de recherche */
+    val filteredPublishers: List<Publisher>
+        get() = if (searchQuery.value.isBlank()) publishers
+        else publishers.filter { it.name?.contains(searchQuery.value, ignoreCase = true) ?: false }
+
     init {
         loadPublishers()
     }

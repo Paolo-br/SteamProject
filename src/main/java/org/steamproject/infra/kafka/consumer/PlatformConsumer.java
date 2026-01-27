@@ -1,8 +1,6 @@
 package org.steamproject.infra.kafka.consumer;
 
-/**
- * Skeleton consumer for platform-scoped events.
- */
+
 public class PlatformConsumer {
     private final org.apache.kafka.clients.consumer.KafkaConsumer<String, Object> consumer;
     private final String topic;

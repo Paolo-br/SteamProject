@@ -1,8 +1,8 @@
 ﻿package org.example.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -39,83 +39,92 @@ fun PatchesScreen(onBack: () -> Unit) {
         }
     }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(24.dp)
     ) {
-        // Bouton retour + Titre
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "Retour",
-                    tint = MaterialTheme.colors.primary
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Correctifs & Patchs",
-                style = MaterialTheme.typography.h4,
-                fontWeight = FontWeight.Bold
-            )
-
-            // Badge de nombre de patchs
-            if (patches.isNotEmpty()) {
-                Spacer(modifier = Modifier.width(16.dp))
-                Surface(
-                    color = MaterialTheme.colors.primary,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = "${patches.size} patchs",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.caption,
-                        color = MaterialTheme.colors.onPrimary
+        item {
+            // Bouton retour + Titre
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Retour",
+                        tint = MaterialTheme.colors.primary
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Correctifs & Patchs",
+                    style = MaterialTheme.typography.h4,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // Badge de nombre de patchs
+                if (patches.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Surface(
+                        color = MaterialTheme.colors.primary,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(
+                            text = "${patches.size} patchs",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.caption,
+                            color = MaterialTheme.colors.onPrimary
+                        )
+                    }
+                }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        item {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                PatchSummaryCards(
+                    modifier = Modifier.fillMaxWidth(),
+                    fixes = viewModel.fixesCount,
+                    adds = viewModel.addsCount,
+                    optimizations = viewModel.optimizationsCount
+                )
 
-        if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(24.dp))
+
+                PatchTable(
+                    modifier = Modifier.fillMaxWidth(),
+                    patches = patches,
+                    selectedPatchId = selectedPatchId,
+                    onPatchSelected = { patchId: String? -> viewModel.selectPatch(patchId) }
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                PatchDetailPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    selectedPatchId = selectedPatchId
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                RecentPatchActivity(
+                    modifier = Modifier.fillMaxWidth(),
+                    patches = viewModel.recentPatches
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
-        } else {
-            PatchSummaryCards(
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            PatchTable(
-                modifier = Modifier.fillMaxWidth(),
-                onPatchSelected = { patchId: String? -> viewModel.selectPatch(patchId) }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            PatchDetailPanel(
-                modifier = Modifier.fillMaxWidth(),
-                selectedPatchId = selectedPatchId
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            RecentPatchActivity(
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

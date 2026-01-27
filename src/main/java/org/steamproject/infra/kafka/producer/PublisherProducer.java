@@ -13,6 +13,13 @@ import java.util.UUID;
 import java.util.Properties;
 import java.util.concurrent.Future;
 
+/**
+ * Producteur utilisé par les éditeurs/publishers pour émettre divers événements
+ * liés au cycle de vie des jeux (publication, mise à jour, patchs, DLC, etc.).
+ *
+ * Les méthodes exposées créent les événements Avro correspondants et les
+ * publient sur les topics dédiés.
+ */
 public class PublisherProducer {
     private final KafkaProducer<String, Object> producer;
 
@@ -33,10 +40,25 @@ public class PublisherProducer {
         this.producer = new KafkaProducer<>(props);
     }
 
+    /**
+     * Envoie un événement {@code GameReleasedEvent} sur le topic de sorties.
+     *
+     * @param gameId identifiant du jeu (clé du message)
+     * @param evt    événement Avro construit ailleurs
+     * @return Future représentant l'envoi asynchrone
+     */
     public Future<RecordMetadata> sendGameReleased(String gameId, GameReleasedEvent evt) {
         return sendToTopic(TOPIC_GAME_RELEASED, gameId, evt);
     }
 
+    /**
+     * Envoie un objet générique sur le topic spécifié.
+     *
+     * @param topic nom du topic
+     * @param key   clé du message
+     * @param evt   objet évènementiel (généralement un enregistrement Avro)
+     * @return Future représentant l'envoi asynchrone
+     */
     public Future<RecordMetadata> sendToTopic(String topic, String key, Object evt) {
         ProducerRecord<String, Object> rec = new ProducerRecord<>(topic, key, evt);
         return producer.send(rec);
@@ -72,7 +94,9 @@ public class PublisherProducer {
 
         return sendToTopic(TOPIC_GAME_RELEASED, gameId, evt);
     }
-
+    /**
+     * Ferme proprement le producteur en vidant les buffers.
+     */
     public void close() {
         producer.flush();
         producer.close();

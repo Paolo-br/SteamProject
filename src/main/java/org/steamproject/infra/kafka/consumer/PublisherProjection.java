@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 public class PublisherProjection {
     private static final PublisherProjection INSTANCE = new PublisherProjection();
     private final Map<String, List<String>> store = new ConcurrentHashMap<>();
-    // Track processed eventIds for publisher events
     private final java.util.Set<String> seenEventIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     private PublisherProjection() {}
@@ -25,9 +24,7 @@ public class PublisherProjection {
         });
     }
 
-    /**
-     * Atomically mark an eventId as seen. Returns true if eventId was not seen before.
-     */
+
     public boolean markEventIfNew(String eventId) {
         if (eventId == null || eventId.isEmpty()) return true;
         return seenEventIds.add(eventId);

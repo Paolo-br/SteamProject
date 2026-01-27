@@ -15,7 +15,21 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Properties;
 
+/**
+ * Consommateur autonome (exécutable) pour les événements d'achat de jeu.
+ *
+ * Peut être lancé en tant qu'utilitaire pour alimenter la projection locale
+ * des achats. Les paramètres Kafka sont configurables via des propriétés système.
+ */
 public class PurchaseEventConsumer {
+    /**
+     * Point d'entrée : configure le consommateur et démarre la boucle de lecture.
+     *
+     * Propriétés système utilisées :
+     * - kafka.bootstrap
+     * - schema.registry
+     * - kafka.topic
+     */
     public static void main(String[] args) {
         String bootstrap = System.getProperty("kafka.bootstrap", "localhost:9092");
         String sr = System.getProperty("schema.registry", "http://localhost:8081");
@@ -42,7 +56,8 @@ public class PurchaseEventConsumer {
                             String playerId = evt.getPlayerId().toString();
                             String purchaseDate = DateTimeFormatter.ISO_INSTANT
                                     .format(Instant.ofEpochMilli(evt.getTimestamp()).atOffset(ZoneOffset.UTC));
-                            GameOwnership go = new GameOwnership(evt.getGameId().toString(), evt.getGameName().toString(), purchaseDate);
+                            double pricePaid = evt.getPricePaid();
+                            GameOwnership go = new GameOwnership(evt.getGameId().toString(), evt.getGameName().toString(), purchaseDate, 0, null, pricePaid);
                             PlayerLibraryProjection.getInstance().addOwnership(playerId, go);
                             System.out.println("Processed purchase for player=" + playerId + " game=" + evt.getGameId());
                         } else {

@@ -3,10 +3,7 @@ package org.steamproject.infra.kafka.consumer;
 import java.util.Collections;
 import java.util.Properties;
 
-/**
- * Skeleton consumer for publisher-scoped events.
- * Should subscribe to a `publisher-*` topic and dispatch to type-specific handlers.
- */
+
 public class PublisherConsumer {
     private final org.apache.kafka.clients.consumer.KafkaConsumer<String, Object> consumer;
     private final String topic;
@@ -23,7 +20,6 @@ public class PublisherConsumer {
         props.put(org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         this.consumer = new org.apache.kafka.clients.consumer.KafkaConsumer<>(props);
-        // support comma-separated topic list
         java.util.List<String> topics = new java.util.ArrayList<>();
         for (String t : topic.split(",")) {
             String tt = t.trim();
@@ -76,7 +72,6 @@ public class PublisherConsumer {
     public void handleGameReleased(org.steamproject.events.GameReleasedEvent evt) {
         try {
             String eventId = evt.getEventId() == null ? "" : evt.getEventId().toString();
-            // de-duplication
             if (!PublisherProjection.getInstance().markEventIfNew(eventId)) {
                 System.out.println("PublisherConsumer skipped duplicate eventId=" + eventId);
                 return;
@@ -95,9 +90,26 @@ public class PublisherConsumer {
             String summary = gameId + "|" + (gameName == null ? "" : gameName) + "|" + (releaseYear == null ? "" : releaseYear);
             PublisherProjection.getInstance().addPublishedGame(pubId, summary);
 
-            // also store full game metadata so REST/catalog can expose genre/platform
             GameProjection.getInstance().upsertGame(gameId, gameName, releaseYear, platform, genre, pubId, initialVersion, initialPrice);
 
+            try {
+                String hw = platform;
+                org.steamproject.model.DistributionPlatform dp = org.steamproject.model.DistributionPlatform.inferFromHardwareCode(hw);
+                String platformId = dp == null ? "steam" : dp.getId();
+                String platTopic = System.getProperty("kafka.topic.platform", "platform-catalog-events");
+                String bootstrap = System.getProperty("kafka.bootstrap", "localhost:9092");
+                String sr = System.getProperty("schema.registry", "http://localhost:8081");
+                org.steamproject.infra.kafka.producer.PlatformProducer pprod = new org.steamproject.infra.kafka.producer.PlatformProducer(bootstrap, sr, platTopic);
+                org.steamproject.events.PlatformCatalogUpdateEvent pc = org.steamproject.events.PlatformCatalogUpdateEvent.newBuilder()
+                        .setPlatformId(platformId)
+                        .setGameId(gameId)
+                        .setGameName(gameName)
+                        .setAction(org.steamproject.events.CatalogAction.ADD)
+                        .setTimestamp(System.currentTimeMillis())
+                        .build();
+                try { pprod.sendCatalogUpdate(gameId, pc).get(); } catch (Exception e) { /* best-effort */ }
+                pprod.close();
+            } catch (Throwable t) { /* ignore platform publish failures */ }
             System.out.println("PublisherConsumer processed game released publisher=" + pubId + " game=" + gameId + " platform=" + platform + " genre=" + genre);
         } catch (Exception ex) { ex.printStackTrace(); }
     }

@@ -195,7 +195,9 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                             }
                         }
                     }
-                    out.add(Player(id = id, username = username, email = email, registrationDate = reg, library = library))
+                    val gdprConsent = n.get("gdprConsent")?.asBoolean() ?: false
+                    val gdprConsentDate = n.get("gdprConsentDate")?.asText()?.takeIf { it.isNotBlank() }
+                    out.add(Player(id = id, username = username, email = email, registrationDate = reg, firstName = null, lastName = null, dateOfBirth = null, gdprConsent = gdprConsent, gdprConsentDate = gdprConsentDate, library = library))
                 }
             }
             out
@@ -276,8 +278,33 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
         } catch (_: Exception) { emptyList() }
     }
 
-    override suspend fun getRecentPurchases(limit: Int): List<Purchase> = emptyList()
-    override suspend fun getPurchaseStats(): PurchaseStats = PurchaseStats(0, 0.0)
+    override suspend fun getRecentPurchases(limit: Int): List<Purchase> = withContext(Dispatchers.IO) {
+        try {
+            val body = safeGet("/api/purchases") ?: return@withContext emptyList()
+            val node = mapper.readTree(body)
+            if (!node.isArray) return@withContext emptyList()
+            val out = mutableListOf<Purchase>()
+            for (n in node) {
+                val gid = n.get("gameId")?.asText() ?: continue
+                val gname = n.get("gameName")?.asText() ?: ""
+                val pid = n.get("playerId")?.asText() ?: ""
+                val price = if (n.get("pricePaid") != null && !n.get("pricePaid").isNull) n.get("pricePaid").asDouble() else 0.0
+                val date = n.get("purchaseDate")?.asText() ?: Instant.now().toString()
+                val ts = try { Instant.parse(date).toEpochMilli() } catch (_: Exception) { System.currentTimeMillis() }
+                out.add(Purchase(purchaseId = "$pid-$gid", gameId = gid, gameName = gname, playerId = pid, playerUsername = "", pricePaid = price, platform = "", timestamp = ts, isDlc = false, dlcId = null))
+            }
+            out.sortedByDescending { it.timestamp }.take(limit)
+        } catch (_: Exception) { emptyList() }
+    }
+
+    override suspend fun getPurchaseStats(): PurchaseStats = withContext(Dispatchers.IO) {
+        try {
+            val purchases = getRecentPurchases(1000)
+            val total = purchases.size
+            val revenue = purchases.sumOf { it.pricePaid }
+            PurchaseStats(totalPurchases = total, totalRevenue = revenue)
+        } catch (_: Exception) { PurchaseStats(0, 0.0) }
+    }
     override suspend fun getDLCsForGame(gameId: String): List<DLC> = withContext(Dispatchers.IO) {
         val all = getAllDLCs()
         all.filter { it.parentGameId == gameId }

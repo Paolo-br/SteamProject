@@ -11,8 +11,11 @@ import java.util.Properties;
 import java.util.concurrent.Future;
 
 /**
- * Producer dédié aux événements liés aux joueurs (player scope).
- * Expose une méthode spécifique pour envoyer un achat de jeu.
+ * Producteur dédié aux événements liés aux joueurs (scope "player").
+ *
+ * Cette classe encapsule un {@code KafkaProducer} configuré pour sérialiser
+ * les valeurs avec Avro via le Schema Registry et expose des méthodes
+ * utilitaires pour envoyer des événements liés aux joueurs.
  */
 public class PlayerProducer {
     private final KafkaProducer<String, Object> producer;
@@ -28,6 +31,13 @@ public class PlayerProducer {
         this.producer = new KafkaProducer<>(props);
     }
 
+    /**
+     * Envoie un événement d'achat de jeu pour un joueur donné.
+     *
+     * @param playerId identifiant du joueur utilisé comme clé du message
+     * @param evt      événement de type {@link GamePurchaseEvent} à publier
+     * @return {@link Future} de {@link RecordMetadata} représentant l'envoi asynchrone
+     */
     public Future<RecordMetadata> sendGamePurchase(String playerId, GamePurchaseEvent evt) {
         ProducerRecord<String, Object> rec = new ProducerRecord<>(topic, playerId, evt);
         return producer.send(rec);

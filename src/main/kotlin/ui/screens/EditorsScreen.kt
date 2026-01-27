@@ -1,8 +1,9 @@
 package org.example.ui.screens
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+// removed page-level verticalScroll to avoid runtime AWT exceptions
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -31,6 +32,7 @@ fun EditorsScreen(
     // Récupération des états
     val isLoading by remember { derivedStateOf { viewModel.isLoading } }
     val selectedEditorId by viewModel.selectedEditorId
+    val searchQuery by viewModel.searchQuery
 
     // Nettoyage à la sortie
     DisposableEffect(Unit) {
@@ -39,71 +41,83 @@ fun EditorsScreen(
         }
     }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(24.dp)
     ) {
-        // Bouton retour + Titre
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = "Retour",
-                    tint = MaterialTheme.colors.primary
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Éditeurs",
-                style = MaterialTheme.typography.h4,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            EditorTable(
-                modifier = Modifier.fillMaxWidth(),
-                publishers = viewModel.publishers,
-                onEditorSelected = { editorId: String? ->
-                    viewModel.selectEditor(editorId)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
+        item {
+            // Bouton retour + Titre
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                EditorDetailPanel(
-                    modifier = Modifier.weight(1f),
-                    selectedEditorId = selectedEditorId
-                )
-
-                IncidentsComparisonChart(
-                    modifier = Modifier.weight(1f)
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Retour",
+                        tint = MaterialTheme.colors.primary
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Éditeurs",
+                    style = MaterialTheme.typography.h4,
+                    fontWeight = FontWeight.Bold
                 )
             }
 
-            PerformanceIndicators(
-                modifier = Modifier.fillMaxWidth()
-            )
-
             Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        item {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
+                // Barre de recherche (comme pour les jeux)
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { viewModel.updateSearchQuery(it) },
+                    placeholder = "Rechercher un éditeur..."
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                EditorTable(
+                    modifier = Modifier.fillMaxWidth(),
+                    visibleRows = 5,
+                    publishers = viewModel.filteredPublishers,
+                    onEditorSelected = { editorId: String? ->
+                        viewModel.selectEditor(editorId)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                ) {
+                    EditorDetailPanel(
+                        modifier = Modifier.weight(1f),
+                        selectedEditorId = selectedEditorId
+                    )
+
+                    IncidentsComparisonChart(
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                PerformanceIndicators(
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
         }
     }
 }
