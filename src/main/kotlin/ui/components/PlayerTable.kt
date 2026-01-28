@@ -61,9 +61,10 @@ fun PlayerTable(
                             Text(text = player.email ?: "-", modifier = Modifier.weight(0.20f))
                             Text(text = player.registrationDate ?: "-", modifier = Modifier.weight(0.12f))
                             Text(text = player.dateOfBirth ?: "-", modifier = Modifier.weight(0.12f))
-                            Text(text = if (player.gdprConsent) "Oui" else "Non", modifier = Modifier.weight(0.08f))
+                            Text(text = if (player.gdprConsent) "Oui" else "Non", modifier = Modifier.weight(0.07f))
                             Text(text = (player.library.size).toString(), modifier = Modifier.weight(0.08f))
-                            Text(text = player.lastEvaluationDate ?: "-", modifier = Modifier.weight(0.12f))
+                            Text(text = (player.evaluationsCount?.toString() ?: "0"), modifier = Modifier.weight(0.06f))
+                            Text(text = player.lastEvaluationDate ?: "-", modifier = Modifier.weight(0.11f))
                         }
                         Divider(color = Color(0xFFEFEFEF))
                     }
@@ -89,9 +90,10 @@ private fun PlayerTableHeader() {
         TableHeaderCell("Email", weight = 0.20f)
         TableHeaderCell("Inscription", weight = 0.12f)
         TableHeaderCell("Naissance", weight = 0.12f)
-        TableHeaderCell("Consent.", weight = 0.08f)
+        TableHeaderCell("Consent.", weight = 0.07f)
         TableHeaderCell("Jeux", weight = 0.08f)
-        TableHeaderCell("Dernière éval.", weight = 0.12f)
+        TableHeaderCell("Nbr évalu.", weight = 0.06f)
+        TableHeaderCell("Dernière éval.", weight = 0.11f)
     }
 }
 

@@ -48,8 +48,18 @@ class GameDetailViewModel(private val gameId: String) : BaseViewModel() {
                 val dataService = ServiceLocator.dataService
 
                 // Charger le jeu
-                val game = dataService.getGame(gameId)
+                var game = dataService.getGame(gameId)
                     ?: throw IllegalArgumentException("Jeu non trouvé")
+
+                // Si la projection ne fournit pas l'année, récupérer depuis le CSV (fallback)
+                if (game.releaseYear == null) {
+                    try {
+                        val fallback = org.example.services.api.JavaBackedDataService().getGame(gameId)
+                        if (fallback != null && fallback.releaseYear != null) {
+                            game = game.copy(releaseYear = fallback.releaseYear)
+                        }
+                    } catch (_: Exception) { /* best-effort */ }
+                }
 
                 // Charger l'éditeur
                 val publisher = game.publisherId?.let {
@@ -92,29 +102,7 @@ class GameDetailViewModel(private val gameId: String) : BaseViewModel() {
     /**
      * Soumet une nouvelle évaluation pour ce jeu.
      */
-    fun submitRating(score: Int, comment: String, username: String = "Anonymous") {
-        viewModelScope.launch {
-            try {
-                val dataService = ServiceLocator.dataService
-
-                val newRating = Rating(
-                    username = username,
-                    rating = score,
-                    comment = comment,
-                    date = java.time.LocalDate.now().format(
-                        java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")
-                    )
-                )
-
-                dataService.addRating(gameId, newRating)
-
-                // Recharger les détails
-                loadGameDetails()
-            } catch (e: Exception) {
-                println("Erreur lors de la soumission: ${e.message}")
-            }
-        }
-    }
+    // Rating submission removed: ratings are created only via events.
 }
 
 /**

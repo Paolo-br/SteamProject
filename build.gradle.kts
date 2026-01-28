@@ -246,5 +246,29 @@ tasks.register<JavaExec>("runPlayerProducer") {
     description = "Run PlayerProducerApp (mode=create|purchase via -Dmode)"
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("org.steamproject.infra.kafka.producer.PlayerProducerApp")
+    // Allow passing `-Pmode=...` to forward the mode into the forked JVM
+    val props = mutableMapOf<String, Any>()
+    if (project.hasProperty("mode")) props["mode"] = project.property("mode").toString()
+    if (project.hasProperty("test.player.id")) props["test.player.id"] = project.property("test.player.id").toString()
+    if (project.hasProperty("test.game.id")) props["test.game.id"] = project.property("test.game.id").toString()
+    if (project.hasProperty("test.player.username")) props["test.player.username"] = project.property("test.player.username").toString()
+    if (project.hasProperty("test.game.name")) props["test.game.name"] = project.property("test.game.name").toString()
+    systemProperties = props
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPlayerEventsConsumer") {
+    group = "application"
+    description = "Run PlayerEventsConsumer to consume player-generated events"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.consumer.PlayerEventsConsumerApp")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runCleanLibrary") {
+    group = "application"
+    description = "Remove orphaned entries from PlayerLibraryProjection"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.tools.PlayerLibraryCleaner")
     dependsOn("generateAvroJava", "classes")
 }

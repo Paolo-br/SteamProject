@@ -15,11 +15,13 @@ public class PurchaseRestService {
 
         String bootstrap = System.getProperty("kafka.bootstrap", "localhost:9092");
         String sr = System.getProperty("schema.registry", "http://localhost:8081");
-        String topic = System.getProperty("kafka.topic", "game-purchase-events");
+        String purchaseTopic = System.getProperty("kafka.topic", "game-purchase-events");
+        String extraPlayerTopics = System.getProperty("kafka.topic.player.events", "dlc-purchase-events,game-session-events,crash-report-events,new-rating-events,review-published-events,review-voted-events,player-created-events");
+        String playerTopics = purchaseTopic + "," + extraPlayerTopics;
         String group = System.getProperty("kafka.group", "player-consumer-group-rest");
         Thread playerThread = new Thread(() -> {
             try {
-                PlayerConsumer pc = new PlayerConsumer(bootstrap, sr, topic, group);
+                PlayerConsumer pc = new PlayerConsumer(bootstrap, sr, playerTopics, group);
                 pc.start();
             } catch (Throwable t) { t.printStackTrace(); }
         }, "player-consumer-thread");
@@ -48,21 +50,13 @@ public class PurchaseRestService {
         platformThread.setDaemon(true);
         platformThread.start();
 
-        String playerCreatedTopic = System.getProperty("kafka.topic.player", "player-created-events");
-        String playerCreatedGroup = System.getProperty("kafka.group.player", "player-created-consumer-group-rest");
-        Thread playerCreatedThread = new Thread(() -> {
-            try {
-                PlayerCreatedConsumer pc = new PlayerCreatedConsumer(bootstrap, sr, playerCreatedTopic, playerCreatedGroup);
-                pc.start();
-            } catch (Throwable t) { t.printStackTrace(); }
-        }, "player-created-consumer-thread");
-        playerCreatedThread.setDaemon(true);
-        playerCreatedThread.start();
+        // Player creation events are handled by the consolidated PlayerConsumer
+        // (PlayerConsumer started above) which also updates PlayerProjection.
 
         int port = Integer.getInteger("http.port", 8080);
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/api/players", new PlayersHandler());
-        server.createContext("/api/purchase", new PurchaseCreateHandler(bootstrap, sr, topic));
+        server.createContext("/api/purchase", new PurchaseCreateHandler(bootstrap, sr, purchaseTopic));
         server.createContext("/api/purchases", new PurchasesHandler());
         server.createContext("/api/publishers", new PublisherHandler());
         server.createContext("/api/platforms", new PlatformHandler());
@@ -95,7 +89,55 @@ public class PurchaseRestService {
                 if (parts.length >= 5) {
                     String playerId = parts[3];
                     var library = PlayerLibraryProjection.getInstance().getLibrary(playerId);
-                    String response = mapper.writeValueAsString(library);
+                    // Enrich ownership entries with distribution platform for UI library column
+                    java.util.List<java.util.Map<String,Object>> enriched = new java.util.ArrayList<>();
+                    for (Object o : library) {
+                        try {
+                            var go = (org.steamproject.model.GameOwnership) o;
+                            java.util.Map<String,Object> item = new java.util.HashMap<>();
+                            item.put("gameId", go.gameId());
+                            item.put("gameName", go.gameName());
+                            item.put("purchaseDate", go.purchaseDate());
+                            item.put("playtime", go.playtime());
+                            item.put("pricePaid", go.pricePaid());
+                            // lookup projection to obtain distributionPlatform
+                            var gd = org.steamproject.infra.kafka.consumer.GameProjection.getInstance().getGame(go.gameId());
+                            if (gd != null) {
+                                Object dp = gd.getOrDefault("distributionPlatform", gd.getOrDefault("platform", null));
+                                if (dp != null) item.put("platform", dp);
+                            }
+                            enriched.add(item);
+                        } catch (Throwable t) { /* best-effort */ }
+                    }
+                    String response = mapper.writeValueAsString(enriched);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                    byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
+                    return;
+                }
+            }
+
+            if (path.startsWith("/api/players/") && path.endsWith("/sessions")) {
+                String[] parts = path.split("/");
+                if (parts.length >= 5) {
+                    String playerId = parts[3];
+                    var sessions = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotSessions().get(playerId);
+                    String response = mapper.writeValueAsString(sessions == null ? java.util.Collections.emptyList() : sessions);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                    byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
+                    return;
+                }
+            }
+
+            if (path.startsWith("/api/players/") && path.endsWith("/reviews")) {
+                String[] parts = path.split("/");
+                if (parts.length >= 5) {
+                    String playerId = parts[3];
+                    var reviews = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotReviews().get(playerId);
+                    String response = mapper.writeValueAsString(reviews == null ? java.util.Collections.emptyList() : reviews);
                     exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
                     byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
                     exchange.sendResponseHeaders(200, bytes.length);
@@ -275,9 +317,49 @@ public class PurchaseRestService {
                 for (String e : entries) {
                     String[] p = e.split("\\|", 3);
                     java.util.Map<String, Object> m = new java.util.HashMap<>();
-                    m.put("gameId", p.length > 0 ? p[0] : null);
+                    String gid = p.length > 0 ? p[0] : null;
+                    m.put("gameId", gid);
                     m.put("gameName", p.length > 1 ? p[1] : null);
-                    m.put("releaseYear", p.length > 2 ? Integer.parseInt(p[2]) : null);
+                    m.put("releaseYear", p.length > 2 && !p[2].isEmpty() ? Integer.parseInt(p[2]) : null);
+                    // attempt to enrich with game projection details (price, platform, genre, and ratings)
+                    try {
+                        var gd = org.steamproject.infra.kafka.consumer.GameProjection.getInstance().getGame(gid);
+                        if (gd != null) {
+                            if (gd.get("genre") != null) m.put("genre", gd.get("genre"));
+                            if (gd.get("console") != null) m.put("console", gd.get("console"));
+                            if (gd.get("platform") != null) m.put("platform", gd.get("platform"));
+                            if (gd.get("price") != null) m.put("price", gd.get("price"));
+                            if (gd.get("initialVersion") != null) m.put("initialVersion", gd.get("initialVersion"));
+                            if (gd.get("versions") != null) m.put("versions", gd.get("versions"));
+                            if (gd.get("patches") != null) m.put("patches", gd.get("patches"));
+                            if (gd.get("dlcs") != null) m.put("dlcs", gd.get("dlcs"));
+                            if (gd.get("deprecatedVersions") != null) m.put("deprecatedVersions", gd.get("deprecatedVersions"));
+                            if (gd.get("incidentResponses") != null) m.put("incidentResponses", gd.get("incidentResponses"));
+                            if (gd.get("incidentCount") != null) m.put("incidentCount", gd.get("incidentCount"));
+                            // enrich with ratings from PlayerProjection (average + list)
+                            try {
+                                var reviewsSnap = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotReviews();
+                                java.util.List<java.util.Map<String,Object>> ratingsList = new java.util.ArrayList<>();
+                                double sum = 0.0; int cnt = 0;
+                                for (var revEntry : reviewsSnap.entrySet()) {
+                                    for (var rv : revEntry.getValue()) {
+                                        try {
+                                            Object gidRv = rv.get("gameId");
+                                            if (gidRv != null && gidRv.equals(gid)) {
+                                                ratingsList.add(rv);
+                                                Object r = rv.get("rating");
+                                                if (r instanceof Number) { sum += ((Number) r).doubleValue(); cnt++; }
+                                                else if (r != null) { try { sum += Double.parseDouble(r.toString()); cnt++; } catch (Exception ignore) {}
+                                                }
+                                            }
+                                        } catch (Throwable t) { /* ignore per-item */ }
+                                    }
+                                }
+                                if (cnt > 0) m.put("averageRating", sum / cnt);
+                                if (!ratingsList.isEmpty()) m.put("ratings", ratingsList);
+                            } catch (Throwable t) { /* best-effort */ }
+                        }
+                    } catch (Exception ex) { /* ignore enrichment failures */ }
                     out.add(m);
                 }
                 String response = mapper.writeValueAsString(out);
@@ -378,6 +460,7 @@ public class PurchaseRestService {
                         var gd = org.steamproject.infra.kafka.consumer.GameProjection.getInstance().getGame(p.length>0? p[0] : null);
                         if (gd != null) {
                             if (gd.get("genre") != null) m.put("genre", gd.get("genre"));
+                            if (gd.get("console") != null) m.put("console", gd.get("console"));
                             if (gd.get("platform") != null && m.get("platform") == null) m.put("platform", gd.get("platform"));
                             if (gd.get("price") != null) m.put("price", gd.get("price"));
                             if (gd.get("initialVersion") != null) m.put("initialVersion", gd.get("initialVersion"));
@@ -387,6 +470,29 @@ public class PurchaseRestService {
                             if (gd.get("dlcs") != null) m.put("dlcs", gd.get("dlcs"));
                             if (gd.get("deprecatedVersions") != null) m.put("deprecatedVersions", gd.get("deprecatedVersions"));
                             if (gd.get("incidentResponses") != null) m.put("incidentResponses", gd.get("incidentResponses"));
+                            if (gd.get("incidentCount") != null) m.put("incidentCount", gd.get("incidentCount"));
+                            // enrich with ratings from PlayerProjection (average + list)
+                            try {
+                                var reviewsSnap = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotReviews();
+                                java.util.List<java.util.Map<String,Object>> ratingsList = new java.util.ArrayList<>();
+                                double sum = 0.0; int cnt = 0;
+                                for (var revEntry : reviewsSnap.entrySet()) {
+                                    for (var rv : revEntry.getValue()) {
+                                        try {
+                                            Object gid = rv.get("gameId");
+                                            if (gid != null && gid.equals(p.length>0? p[0] : null)) {
+                                                ratingsList.add(rv);
+                                                Object r = rv.get("rating");
+                                                if (r instanceof Number) { sum += ((Number) r).doubleValue(); cnt++; }
+                                                else if (r != null) { try { sum += Double.parseDouble(r.toString()); cnt++; } catch (Exception ignore) {}
+                                                }
+                                            }
+                                        } catch (Throwable t) { /* ignore per-item */ }
+                                    }
+                                }
+                                if (cnt > 0) m.put("averageRating", sum / cnt);
+                                if (!ratingsList.isEmpty()) m.put("ratings", ratingsList);
+                            } catch (Throwable t) { /* best-effort */ }
                         }
                     } catch (Exception ex) { /* ignore enrichment failures */ }
                     out.add(m);
@@ -411,6 +517,7 @@ public class PurchaseRestService {
                         var gd = org.steamproject.infra.kafka.consumer.GameProjection.getInstance().getGame(gid);
                         if (gd != null) {
                             if (gd.get("genre") != null) m.put("genre", gd.get("genre"));
+                            if (gd.get("console") != null) m.put("console", gd.get("console"));
                             if (gd.get("platform") != null) m.put("platform", gd.get("platform"));
                             if (gd.get("price") != null) m.put("price", gd.get("price"));
                             if (gd.get("initialVersion") != null) m.put("initialVersion", gd.get("initialVersion"));
@@ -419,6 +526,29 @@ public class PurchaseRestService {
                             if (gd.get("dlcs") != null) m.put("dlcs", gd.get("dlcs"));
                             if (gd.get("deprecatedVersions") != null) m.put("deprecatedVersions", gd.get("deprecatedVersions"));
                             if (gd.get("incidentResponses") != null) m.put("incidentResponses", gd.get("incidentResponses"));
+                            if (gd.get("incidentCount") != null) m.put("incidentCount", gd.get("incidentCount"));
+                            // enrich with ratings from PlayerProjection (average + list)
+                            try {
+                                var reviewsSnap = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotReviews();
+                                java.util.List<java.util.Map<String,Object>> ratingsList = new java.util.ArrayList<>();
+                                double sum = 0.0; int cnt = 0;
+                                for (var revEntry : reviewsSnap.entrySet()) {
+                                    for (var rv : revEntry.getValue()) {
+                                        try {
+                                            Object gidRv = rv.get("gameId");
+                                            if (gidRv != null && gidRv.equals(gid)) {
+                                                ratingsList.add(rv);
+                                                Object r = rv.get("rating");
+                                                if (r instanceof Number) { sum += ((Number) r).doubleValue(); cnt++; }
+                                                else if (r != null) { try { sum += Double.parseDouble(r.toString()); cnt++; } catch (Exception ignore) {}
+                                                }
+                                            }
+                                        } catch (Throwable t) { /* ignore per-item */ }
+                                    }
+                                }
+                                if (cnt > 0) m.put("averageRating", sum / cnt);
+                                if (!ratingsList.isEmpty()) m.put("ratings", ratingsList);
+                            } catch (Throwable t) { /* best-effort */ }
                         }
                     } catch (Exception ex) { /* ignore */ }
                     out.add(m);

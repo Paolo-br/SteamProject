@@ -31,7 +31,7 @@ fun PatchDetailPanel(modifier: Modifier = Modifier, selectedPatchId: String? = n
 private fun PatchDetailPlaceholder() {
     // kept for compatibility but no longer used
 }
-private val labels = listOf("Informations générales", "Notes de version", "Fichiers modifiés", "Statistiques de téléchargement")
+private val labels = listOf("Informations générales", "Notes de version", "Fichiers modifiés")
 @Composable
 private fun DetailSection(label: String) {
     Column(modifier = Modifier.fillMaxWidth().background(Color(0xFFFAFAFA)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

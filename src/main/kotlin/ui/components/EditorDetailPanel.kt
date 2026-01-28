@@ -73,15 +73,28 @@ fun EditorDetailPanel(
                         val text = url.readText()
                         val json = kotlinx.serialization.json.Json.parseToJsonElement(text)
                         if (json is kotlinx.serialization.json.JsonArray) {
-                            json.mapNotNull { elem ->
-                                try {
-                                    val obj = elem.jsonObject
-                                    val id = obj["gameId"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                                    val name = obj["gameName"]?.jsonPrimitive?.content ?: ""
-                                    val year = obj["releaseYear"]?.jsonPrimitive?.intOrNull
-                                    Game(id = id, name = name, releaseYear = year)
-                                } catch (_: Exception) { null }
-                            }
+                                json.mapNotNull { elem ->
+                                    try {
+                                        val obj = elem.jsonObject
+                                        val id = obj["gameId"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                                        val name = obj["gameName"]?.jsonPrimitive?.content ?: ""
+                                        val year = obj["releaseYear"]?.jsonPrimitive?.intOrNull
+                                        val avg = obj["averageRating"]?.jsonPrimitive?.doubleOrNull
+                                        val ratings = obj["ratings"]?.jsonArray?.mapNotNull { r ->
+                                            try {
+                                                val ro = r.jsonObject
+                                                val rid = ro["id"]?.jsonPrimitive?.content
+                                                val username = ro["username"]?.jsonPrimitive?.content ?: ""
+                                                val playerId = ro["playerId"]?.jsonPrimitive?.contentOrNull
+                                                val rating = ro["rating"]?.jsonPrimitive?.intOrNull ?: 0
+                                                val comment = ro["comment"]?.jsonPrimitive?.contentOrNull ?: ""
+                                                val date = ro["date"]?.jsonPrimitive?.content ?: ""
+                                                org.example.model.Rating(id = rid, username = username, playerId = playerId, rating = rating, comment = comment, date = date)
+                                            } catch (_: Exception) { null }
+                                        } ?: emptyList()
+                                        Game(id = id, name = name, releaseYear = year, averageRating = avg, ratings = ratings)
+                                    } catch (_: Exception) { null }
+                                }
                         } else emptyList()
                     } catch (_: Exception) { emptyList() }
                 } ?: emptyList()
@@ -106,7 +119,12 @@ private fun PublisherDetailContent(pub: Publisher, games: List<Game>) {
         DetailRow("Jeux publiés:", pub.gamesPublished.toString())
         DetailRow("Jeux actifs:", pub.activeGames.toString())
         DetailRow("Incidents totaux:", pub.totalIncidents?.toString() ?: "-")
-        DetailRow("Note moyenne:", pub.averageRating?.toString() ?: "-")
+        DetailRow("Score qualité:", pub.averageRating?.toString() ?: "-")
+        // Compute average rating across published games (if available)
+        val publishedAvg = games.mapNotNull { it.averageRating }.let { list ->
+            if (list.isEmpty()) null else list.average()
+        }
+        DetailRow("Note moyenne (jeux publiés):", publishedAvg?.let { String.format("%.2f", it) } ?: "-")
         DetailRow("Plateformes:", pub.platforms.joinToString(", "))
         DetailRow("Genres:", pub.genres.joinToString(", "))
 

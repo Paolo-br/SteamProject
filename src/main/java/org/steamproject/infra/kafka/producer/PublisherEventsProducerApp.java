@@ -2,6 +2,12 @@ package org.steamproject.infra.kafka.producer;
 
 import java.util.Random;
 import java.util.UUID;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 
 public class PublisherEventsProducerApp {
     public static void main(String[] args) throws Exception {
@@ -36,6 +42,8 @@ public class PublisherEventsProducerApp {
         }
 
         String sampleGameId = selected.getId();
+        HttpClient httpClient = HttpClient.newHttpClient();
+        ObjectMapper mapper = new ObjectMapper();
         String samplePub = System.getProperty("publisher.id", null);
         String platform = selected.getPlatform() != null ? selected.getPlatform() : System.getProperty("platform", "PC");
         String genre = selected.getGenre() != null ? selected.getGenre() : "";
@@ -69,10 +77,104 @@ public class PublisherEventsProducerApp {
                 String newV = "1.1." + rnd.nextInt(100);
                 String gameName = selected.getName();
                 String oldV = "1.0.0";
+                // Ensure the target game is published AND owned (purchased) AND has at least one incident
+                try {
+                    // fetch catalog and purchases to determine published + owned games
+                    HttpRequest catalogReq = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/catalog")).GET().build();
+                    HttpResponse<String> catalogResp = httpClient.send(catalogReq, HttpResponse.BodyHandlers.ofString());
+                    HttpRequest purchasesReq = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/purchases")).GET().build();
+                    HttpResponse<String> purchasesResp = httpClient.send(purchasesReq, HttpResponse.BodyHandlers.ofString());
+
+                    if (catalogResp.statusCode() == 200 && purchasesResp.statusCode() == 200) {
+                        JsonNode catalogArr = mapper.readTree(catalogResp.body());
+                        JsonNode purchasesArr = mapper.readTree(purchasesResp.body());
+
+                        java.util.Set<String> purchasedGameIds = new java.util.HashSet<>();
+                        if (purchasesArr.isArray()) {
+                            for (JsonNode pn : purchasesArr) {
+                                if (pn.hasNonNull("gameId")) purchasedGameIds.add(pn.get("gameId").asText());
+                            }
+                        }
+
+                        java.util.List<JsonNode> candidates = new java.util.ArrayList<>();
+                        if (catalogArr.isArray()) {
+                            for (JsonNode g : catalogArr) {
+                                if (!g.hasNonNull("gameId")) continue;
+                                String gid = g.get("gameId").asText();
+                                boolean owned = purchasedGameIds.contains(gid);
+                                boolean hasInc = (g.hasNonNull("incidentCount") && g.get("incidentCount").asInt() > 0)
+                                        || (g.hasNonNull("incidentResponses") && g.get("incidentResponses").isArray() && g.get("incidentResponses").size() > 0);
+                                if (owned && hasInc) candidates.add(g);
+                            }
+                        }
+
+                        // If a specific game was requested and it's in candidates, use it
+                        boolean usedRequested = false;
+                        if (requestedGameId != null && !requestedGameId.isEmpty()) {
+                            for (JsonNode g : candidates) {
+                                if (g.hasNonNull("gameId") && requestedGameId.equals(g.get("gameId").asText())) {
+                                    sampleGameId = requestedGameId;
+                                    if (g.hasNonNull("platform")) platform = g.get("platform").asText(platform);
+                                    if (g.hasNonNull("publisherId")) samplePub = g.get("publisherId").asText(samplePub);
+                                    usedRequested = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!usedRequested) {
+                            if (candidates.isEmpty()) {
+                                System.err.println("No published+owned game with incidents found — cannot publish patch.");
+                                break;
+                            }
+                            // pick random candidate
+                            JsonNode chosen = candidates.get(rnd.nextInt(candidates.size()));
+                            sampleGameId = chosen.get("gameId").asText(sampleGameId);
+                            if (chosen.hasNonNull("platform")) platform = chosen.get("platform").asText(platform);
+                            if (chosen.hasNonNull("publisherId")) samplePub = chosen.get("publisherId").asText(samplePub);
+                        }
+                    } else {
+                        System.err.println("Warning: could not fetch catalog/purchases — cannot reliably choose a published+owned game.");
+                        break;
+                    }
+                } catch (Exception ex) {
+                    System.err.println("Warning: could not verify published/owned games via projection — aborting patch publish.");
+                    break;
+                }
+
                 p.publishPatch(sampleGameId, gameName, platform, oldV, newV, "Minor fixes").get();
                 System.out.println("Sent PatchPublishedEvent newVersion=" + newV + " for " + sampleGameId);
                 break;
             case "dlc":
+                // Ensure the associated game is already published in the projection
+                try {
+                    HttpRequest req = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/catalog")).GET().build();
+                    HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                    if (resp.statusCode() == 200) {
+                        JsonNode arr = mapper.readTree(resp.body());
+                        boolean exists = false;
+                        if (arr.isArray()) {
+                            for (JsonNode g : arr) {
+                                if (g.hasNonNull("gameId") && sampleGameId.equals(g.get("gameId").asText())) { exists = true; break; }
+                            }
+                            if (!exists && arr.size() > 0) {
+                                // fallback: pick a published game from projection instead
+                                JsonNode g = arr.get(new Random().nextInt(arr.size()));
+                                sampleGameId = g.get("gameId").asText(sampleGameId);
+                                if (g.hasNonNull("platform")) platform = g.get("platform").asText(platform);
+                                if (g.hasNonNull("publisherId")) samplePub = g.get("publisherId").asText(samplePub);
+                                exists = true;
+                            }
+                        }
+                        if (!exists) {
+                            System.err.println("No published game found in projection — publish a game first.");
+                            break;
+                        }
+                    }
+                } catch (Exception ex) {
+                    // If projection unavailable, proceed but warn
+                    System.err.println("Warning: could not verify published games via /api/catalog — proceeding to publish DLC");
+                }
                 String dlcId = UUID.randomUUID().toString();
                 p.publishDlc(dlcId, sampleGameId, samplePub, platform, "Extra Pack", 9.99).get();
                 System.out.println("Sent DlcPublishedEvent dlc=" + dlcId + " for " + sampleGameId);

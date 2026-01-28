@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "ReviewVotedEvent",
+  "doc": "Événement émis lorsqu'un joueur vote la pertinence d'un avis",
+  "fields": [
+    { "name": "reviewId", "type": "string" },
+    { "name": "voterPlayerId", "type": "string" },
+    { "name": "isHelpful", "type": "boolean" },
+    { "name": "timestamp", "type": "long", "default": 0 }
+  ]
+}

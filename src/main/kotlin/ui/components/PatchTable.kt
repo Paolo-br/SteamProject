@@ -50,7 +50,6 @@ fun PatchTable(
                         Text(text = p.platform, modifier = Modifier.weight(0.12f), style = MaterialTheme.typography.body2)
                         Text(text = "${p.sizeInMB} MB", modifier = Modifier.weight(0.10f), style = MaterialTheme.typography.body2)
                         Text(text = p.releaseDate, modifier = Modifier.weight(0.12f), style = MaterialTheme.typography.body2)
-                        Text(text = "-", modifier = Modifier.weight(0.13f), style = MaterialTheme.typography.body2)
                     }
                     Divider(color = Color(0xFFF0F0F0), thickness = 1.dp)
                 }
@@ -69,7 +68,6 @@ private fun PatchTableHeader() {
         TableHeaderCell("Plateformes", weight = 0.12f)
         TableHeaderCell("Taille", weight = 0.10f)
         TableHeaderCell("Date", weight = 0.12f)
-        TableHeaderCell("Téléchargements", weight = 0.13f)
     }
 }
 @Composable

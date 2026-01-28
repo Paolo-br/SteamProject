@@ -40,8 +40,6 @@ fun RatingsScreen(
     val uiState by viewModel.uiState
     val selectedGameId by viewModel.selectedGameId
 
-    // 3. État local pour le formulaire
-    var showAddRatingDialog by remember { mutableStateOf(false) }
 
     // 4. Nettoyage à la sortie
     DisposableEffect(Unit) {
@@ -75,9 +73,6 @@ fun RatingsScreen(
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.weight(1f))
-            Button(onClick = { showAddRatingDialog = true }) {
-                Text("Ajouter une évaluation")
-            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -117,17 +112,7 @@ fun RatingsScreen(
         }
     }
 
-    // Dialogue pour ajouter une évaluation
-    if (showAddRatingDialog) {
-        AddRatingDialog(
-            games = (uiState as? UiState.Success)?.data?.games ?: emptyList(),
-            onDismiss = { showAddRatingDialog = false },
-            onSubmit = { gameId, score, comment, username ->
-                viewModel.submitRating(gameId, score, comment, username)
-                showAddRatingDialog = false
-            }
-        )
-    }
+    // Ratings are created only via events; no UI to create them here.
 }
 
 @Composable
@@ -309,107 +294,5 @@ private fun RatingItem(ratingWithGame: org.example.ui.viewmodel.RatingWithGame) 
     }
 }
 
-@Composable
-private fun AddRatingDialog(
-    games: List<org.example.model.Game>,
-    onDismiss: () -> Unit,
-    onSubmit: (gameId: String, score: Int, comment: String, username: String) -> Unit
-) {
-    var selectedGameId by remember { mutableStateOf(games.firstOrNull()?.id ?: "") }
-    var username by remember { mutableStateOf("") }
-    var rating by remember { mutableStateOf(5) }
-    var comment by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Ajouter une évaluation") },
-        text = {
-            Column {
-                // Sélection du jeu
-                Text("Jeu", fontSize = 12.sp, color = Color.Gray)
-                Box {
-                    OutlinedButton(
-                        onClick = { expanded = true },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            games.find { it.id == selectedGameId }?.name ?: "Sélectionner un jeu",
-                            maxLines = 1
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        games.take(10).forEach { game ->
-                            DropdownMenuItem(onClick = {
-                                selectedGameId = game.id
-                                expanded = false
-                            }) {
-                                Text(game.name)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Nom d'utilisateur
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("Votre nom") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Note
-                Text("Note : $rating / 5", fontSize = 14.sp)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    (1..5).forEach { star ->
-                        IconButton(onClick = { rating = star }) {
-                            Icon(
-                                imageVector = Icons.Filled.Star,
-                                contentDescription = "$star étoiles",
-                                tint = if (star <= rating) Color(0xFFFFB300) else Color(0xFFE0E0E0)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Commentaire
-                OutlinedTextField(
-                    value = comment,
-                    onValueChange = { comment = it },
-                    label = { Text("Commentaire") },
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
-                    maxLines = 3
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (selectedGameId.isNotEmpty() && username.isNotEmpty()) {
-                        onSubmit(selectedGameId, rating, comment, username)
-                    }
-                },
-                enabled = selectedGameId.isNotEmpty() && username.isNotEmpty()
-            ) {
-                Text("Soumettre")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Annuler")
-            }
-        }
-    )
-}
 

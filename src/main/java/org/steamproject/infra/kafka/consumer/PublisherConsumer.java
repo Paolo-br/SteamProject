@@ -90,12 +90,14 @@ public class PublisherConsumer {
             String summary = gameId + "|" + (gameName == null ? "" : gameName) + "|" + (releaseYear == null ? "" : releaseYear);
             PublisherProjection.getInstance().addPublishedGame(pubId, summary);
 
-            GameProjection.getInstance().upsertGame(gameId, gameName, releaseYear, platform, genre, pubId, initialVersion, initialPrice);
+            // infer distribution platform id from hardware/platform code
+            String hwConsole = platform;
+            org.steamproject.model.DistributionPlatform dp = org.steamproject.model.DistributionPlatform.inferFromHardwareCode(hwConsole);
+            String distributionPlatform = dp == null ? "steam" : dp.getId();
+            GameProjection.getInstance().upsertGame(gameId, distributionPlatform, hwConsole, gameName, releaseYear, genre, pubId, initialVersion, initialPrice);
 
             try {
-                String hw = platform;
-                org.steamproject.model.DistributionPlatform dp = org.steamproject.model.DistributionPlatform.inferFromHardwareCode(hw);
-                String platformId = dp == null ? "steam" : dp.getId();
+                String platformId = distributionPlatform;
                 String platTopic = System.getProperty("kafka.topic.platform", "platform-catalog-events");
                 String bootstrap = System.getProperty("kafka.bootstrap", "localhost:9092");
                 String sr = System.getProperty("schema.registry", "http://localhost:8081");
@@ -126,7 +128,10 @@ public class PublisherConsumer {
             Integer releaseYear = null;
 
             PublisherProjection.getInstance().addPublishedGame(pubId, gameId + "|" + (gameName == null ? "" : gameName) + "|" + (releaseYear == null ? "" : releaseYear));
-            GameProjection.getInstance().upsertGame(gameId, gameName, releaseYear, platform, genre, pubId, initialVersion, initialPrice);
+            String hwConsole = platform;
+            org.steamproject.model.DistributionPlatform dp = org.steamproject.model.DistributionPlatform.inferFromHardwareCode(hwConsole);
+            String distributionPlatform = dp == null ? "steam" : dp.getId();
+            GameProjection.getInstance().upsertGame(gameId, distributionPlatform, hwConsole, gameName, releaseYear, genre, pubId, initialVersion, initialPrice);
             System.out.println("PublisherConsumer processed game published publisher=" + pubId + " game=" + gameId);
         } catch (Exception ex) { ex.printStackTrace(); }
     }
@@ -151,7 +156,9 @@ public class PublisherConsumer {
         if (gd == null) return;
         java.util.Map<String,Object> m = new java.util.HashMap<>(gd);
         if (value == null) m.remove(key); else m.put(key, value);
-        GameProjection.getInstance().upsertGame(gameId, (String) m.get("gameName"), (Integer) m.get("releaseYear"), (String) m.get("platform"), (String) m.get("genre"), (String) m.get("publisherId"), (String) m.get("initialVersion"), (Double) m.get("price"));
+        String distributionPlatform = (String) m.get("distributionPlatform");
+        String console = (String) m.get("console");
+        GameProjection.getInstance().upsertGame(gameId, distributionPlatform, console, (String) m.get("gameName"), (Integer) m.get("releaseYear"), (String) m.get("genre"), (String) m.get("publisherId"), (String) m.get("initialVersion"), (Double) m.get("price"));
     }
 
     public void handlePatchPublished(org.steamproject.events.PatchPublishedEvent evt) {

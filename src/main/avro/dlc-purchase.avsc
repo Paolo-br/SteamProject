@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "DlcPurchaseEvent",
+  "doc": "Événement émis lors de l'achat d'un DLC",
+  "fields": [
+    { "name": "purchaseId", "type": "string" },
+    { "name": "eventId", "type": "string", "default": "" },
+    { "name": "dlcId", "type": "string" },
+    { "name": "dlcName", "type": "string" },
+    { "name": "gameId", "type": "string" },
+    { "name": "playerId", "type": "string" },
+    { "name": "playerUsername", "type": "string" },
+    { "name": "pricePaid", "type": "double" },
+    { "name": "platform", "type": "string" },
+    { "name": "timestamp", "type": "long", "default": 0 }
+  ]
+}

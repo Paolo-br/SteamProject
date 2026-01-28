@@ -28,6 +28,28 @@ public class PlayerLibraryProjection {
         });
     }
 
+    public void addPlaytime(String playerId, String gameId, int minutes, String lastPlayedIso) {
+        store.computeIfPresent(playerId, (k, list) -> {
+            java.util.List<GameOwnership> newList = new java.util.ArrayList<>();
+            boolean changed = false;
+            for (GameOwnership go : list) {
+                if (go != null && go.gameId() != null && go.gameId().equals(gameId)) {
+                    int hoursToAdd = Math.max(0, minutes / 60);
+                    GameOwnership updated = go.withAdditionalPlaytime(hoursToAdd);
+                    if (lastPlayedIso != null) updated = updated.withLastPlayed(lastPlayedIso);
+                    newList.add(updated);
+                    changed = true;
+                } else {
+                    newList.add(go);
+                }
+            }
+            if (!changed) {
+                return list; // no change
+            }
+            return Collections.unmodifiableList(newList);
+        });
+    }
+
 
     public boolean markEventIfNew(String eventId) {
         if (eventId == null || eventId.isEmpty()) return true; 
@@ -41,4 +63,6 @@ public class PlayerLibraryProjection {
     public Map<String, List<GameOwnership>> snapshot() {
         return store.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
+
+   
 }

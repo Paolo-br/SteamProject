@@ -68,7 +68,7 @@ fun EditorTable(
                             Text(text = pub.name ?: "-", modifier = Modifier.weight(0.25f))
                             Text(text = pub.gamesPublished.toString(), modifier = Modifier.weight(0.15f))
                             Text(text = pub.totalIncidents?.toString() ?: "-", modifier = Modifier.weight(0.15f))
-                            Text(text = "-", modifier = Modifier.weight(0.15f))
+                            Text(text = pub.patchCount?.toString() ?: "-", modifier = Modifier.weight(0.15f))
                             Text(text = pub.averageRating?.toString() ?: "-", modifier = Modifier.weight(0.15f))
                             val react = pub.reactivity?.let { "${it}%" } ?: "-"
                             Text(text = react, modifier = Modifier.weight(0.15f))

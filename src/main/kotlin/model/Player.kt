@@ -52,6 +52,9 @@ data class GameOwnership(
     val purchaseDate: String,
     val playtime: Int = 0, // en heures
     val lastPlayed: String? = null,
-    val pricePaid: Double = 0.0
+    val pricePaid: Double = 0.0,
+    /** Platform de distribution (steam, epic, psn, xbox, nintendo) */
+    val platform: String? = null
 )
+
 

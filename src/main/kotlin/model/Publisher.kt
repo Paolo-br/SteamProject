@@ -12,6 +12,7 @@ data class Publisher(
     val gamesPublished: Int = 0,
     val activeGames: Int = 0,
     val totalIncidents: Int? = null,
+    val patchCount: Int? = null,
     val averageRating: Double? = null,
     val reactivity: Int? = null
 )

@@ -103,12 +103,8 @@ fun EditorsScreen(
                     horizontalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
                     EditorDetailPanel(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         selectedEditorId = selectedEditorId
-                    )
-
-                    IncidentsComparisonChart(
-                        modifier = Modifier.weight(1f)
                     )
                 }
 

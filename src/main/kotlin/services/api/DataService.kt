@@ -82,12 +82,6 @@ interface DataService {
     suspend fun getRatings(gameId: String): List<Rating>
 
     /**
-     * Ajoute une nouvelle évaluation.
-     * Le joueur doit posséder le jeu et avoir suffisamment joué.
-     */
-    suspend fun addRating(gameId: String, rating: Rating): Boolean
-
-    /**
      * Vote sur l'utilité d'une évaluation.
      * @param ratingId ID de l'évaluation
      * @param voterId ID du joueur qui vote

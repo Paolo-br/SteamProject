@@ -14,23 +14,47 @@ public class GameProjection {
 
     public static GameProjection getInstance() { return INSTANCE; }
 
-    public void upsertGame(String gameId, String gameName, Integer releaseYear, String platform, String genre, String publisherId, String initialVersion, Double initialPrice) {
+    public void upsertGame(String gameId, String distributionPlatform, String console, String gameName, Integer releaseYear, String genre, String publisherId, String initialVersion, Double initialPrice) {
         store.compute(gameId, (k, old) -> {
             java.util.Map<String, Object> m = old != null ? new java.util.HashMap<>(old) : new java.util.HashMap<>();
             m.put("gameId", gameId);
             m.put("gameName", gameName);
             m.put("releaseYear", releaseYear);
-            m.put("platform", platform);
+            // distributionPlatform = storefront/channel (steam, epic, xboxstore, etc.)
+            m.put("distributionPlatform", distributionPlatform);
+            // console = hardware/OS/console (PC, PS5, XboxSeriesX, Switch, etc.)
+            m.put("console", console);
+            // keep legacy 'platform' key for compatibility (represents console/hardware)
+            m.put("platform", console);
             m.put("genre", genre);
             m.put("publisherId", publisherId);
             if (initialVersion != null) m.put("initialVersion", initialVersion);
             if (initialPrice != null) m.put("price", initialPrice);
+            // incident counter: number of crash/incident reports observed for this game
+            m.putIfAbsent("incidentCount", 0);
             // ensure lists exist
             m.putIfAbsent("versions", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
             m.putIfAbsent("patches", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
             m.putIfAbsent("dlcs", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
             m.putIfAbsent("deprecatedVersions", new java.util.concurrent.CopyOnWriteArrayList<String>());
             m.putIfAbsent("incidentResponses", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
+            return java.util.Collections.unmodifiableMap(m);
+        });
+    }
+
+    /**
+     * Incrémente le compteur d'incidents pour un jeu donné (best-effort).
+     */
+    public void incrementIncidentCount(String gameId) {
+        store.computeIfPresent(gameId, (k, old) -> {
+            java.util.Map<String,Object> m = new java.util.HashMap<>(old);
+            Object cur = m.getOrDefault("incidentCount", 0);
+            int val = 0;
+            try {
+                if (cur instanceof Number) val = ((Number) cur).intValue();
+                else val = Integer.parseInt(cur.toString());
+            } catch (Exception e) { val = 0; }
+            m.put("incidentCount", val + 1);
             return java.util.Collections.unmodifiableMap(m);
         });
     }

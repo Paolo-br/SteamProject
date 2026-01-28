@@ -81,7 +81,8 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
                     purchaseDate = it.purchaseDate(),
                     playtime = it.playtime() ?: 0,
                     lastPlayed = it.lastPlayed(),
-                    pricePaid = it.pricePaid() ?: 0.0
+                    pricePaid = it.pricePaid() ?: 0.0,
+                    platform = null
                 )
             } ?: emptyList(),
             totalPlaytime = javaPlayer.getTotalPlaytime(),
@@ -145,6 +146,22 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
                 val publisherId = n.get("publisherId")?.asText()?.takeIf { it.isNotBlank() }
                 val publisherName = null
                 val inferredDist = if (hw != null) DistributionPlatform.inferFromHardwareCode(hw) else DistributionPlatform.STEAM
+                val incidentCnt = try { if (n.get("incidentCount") != null && !n.get("incidentCount").isNull) n.get("incidentCount").asInt() else null } catch (_: Exception) { null }
+                val incidentsList: List<Incident> = try {
+                    val ir = n.get("incidentResponses")
+                    if (ir != null && ir.isArray) {
+                        val counts = mutableMapOf<String, Int>()
+                        val fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")
+                        val zid = java.time.ZoneId.systemDefault()
+                        for (rn in ir) {
+                            val ts = try { rn.get("responseTimestamp")?.asLong() ?: rn.get("timestamp")?.asLong() ?: System.currentTimeMillis() } catch (_: Exception) { System.currentTimeMillis() }
+                            val date = try { java.time.Instant.ofEpochMilli(ts).atZone(zid).toLocalDate().format(fmt) } catch (_: Exception) { java.time.Instant.ofEpochMilli(ts).toString() }
+                            counts[date] = (counts[date] ?: 0) + 1
+                        }
+                        counts.entries.sortedByDescending { it.key }.map { Incident(date = it.key, count = it.value) }
+                    } else emptyList()
+                } catch (_: Exception) { emptyList() }
+
                 val g = Game(
                     id = id,
                     name = name,
@@ -157,7 +174,7 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
                     currentVersion = null,
                     price = null,
                     averageRating = null,
-                    incidentCount = null,
+                    incidentCount = incidentCnt,
                     salesNA = null,
                     salesEU = null,
                     salesJP = null,
@@ -165,7 +182,7 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
                     salesGlobal = null,
                     description = null,
                     versions = emptyList(),
-                    incidents = emptyList(),
+                    incidents = incidentsList,
                     ratings = emptyList()
                 )
                 out.add(g)
@@ -191,7 +208,21 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
     override suspend fun getGame(gameId: String): Game? = withContext(Dispatchers.IO) {
         return@withContext try {
             val rest = tryFetchCatalogFromRest()
-            rest?.firstOrNull { it.id == gameId }
+            val restGame = rest?.firstOrNull { it.id == gameId }
+            if (restGame != null) {
+                // If the projection/catalog has no valid year (null or 0), try to read the ingestion CSV
+                val year = restGame.releaseYear
+                if (year == null || year == 0) {
+                    try {
+                        val javaGame = javaService.getById(gameId)
+                        val jYear = javaGame?.getYear()
+                        if (jYear != null && jYear != 0) {
+                            return@withContext restGame.copy(releaseYear = jYear)
+                        }
+                    } catch (_: Throwable) { /* best-effort fallback */ }
+                }
+            }
+            restGame
         } catch (_: Exception) {
             null
         }
@@ -227,8 +258,54 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
             if (resp.statusCode() == 200) {
                 val mapper = jacksonObjectMapper()
                 val counts: Map<String, Int> = mapper.readValue(resp.body())
+
+                // fetch catalog and purchases to compute incidents, patches and activeGames
+                val catalogReq = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/catalog")).GET().build()
+                val catalogResp = client.send(catalogReq, HttpResponse.BodyHandlers.ofString())
+                val catalogNode = if (catalogResp.statusCode() == 200) mapper.readTree(catalogResp.body()) else null
+                val purchasesReq = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/purchases")).GET().build()
+                val purchasesResp = client.send(purchasesReq, HttpResponse.BodyHandlers.ofString())
+                val purchasesNode = if (purchasesResp.statusCode() == 200) mapper.readTree(purchasesResp.body()) else null
+
+                val incidentsByPub = mutableMapOf<String, Int>()
+                val patchesByPub = mutableMapOf<String, Int>()
+                val publishedGamesByPub = mutableMapOf<String, MutableSet<String>>()
+
+                try {
+                    if (catalogNode != null && catalogNode.isArray) {
+                        for (n in catalogNode) {
+                            val gid = n.get("gameId")?.asText() ?: continue
+                            val pubId = n.get("publisherId")?.asText()
+                            if (pubId != null) {
+                                val inc = try { if (n.get("incidentCount") != null && !n.get("incidentCount").isNull) n.get("incidentCount").asInt() else 0 } catch (_: Exception) { 0 }
+                                incidentsByPub[pubId] = (incidentsByPub[pubId] ?: 0) + inc
+
+                                val pNode = n.get("patches")
+                                val pCount = if (pNode != null && pNode.isArray) pNode.size() else 0
+                                patchesByPub[pubId] = (patchesByPub[pubId] ?: 0) + pCount
+
+                                val set = publishedGamesByPub.getOrPut(pubId) { mutableSetOf() }
+                                set.add(gid)
+                            }
+                        }
+                    }
+                } catch (_: Exception) { }
+
+                val purchasedGameIds = mutableSetOf<String>()
+                try {
+                    if (purchasesNode != null && purchasesNode.isArray) {
+                        for (pn in purchasesNode) {
+                            pn.get("gameId")?.asText()?.let { purchasedGameIds.add(it) }
+                        }
+                    }
+                } catch (_: Exception) { }
+
                 return@withContext base.map { p ->
-                    p.copy(gamesPublished = counts[p.id] ?: p.gamesPublished)
+                    val gpSet = publishedGamesByPub[p.id] ?: emptySet()
+                    val active = gpSet.count { purchasedGameIds.contains(it) }
+                    val patches = patchesByPub[p.id] ?: 0
+                    val incidents = incidentsByPub[p.id]
+                    p.copy(gamesPublished = counts[p.id] ?: p.gamesPublished, activeGames = active, totalIncidents = incidents, patchCount = patches)
                 }
             }
         } catch (_: Exception) {}
@@ -269,8 +346,9 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
                                     val gid = ln.get("gameId")?.asText() ?: continue
                                     val gname = ln.get("gameName")?.asText() ?: ""
                                     val purchaseDate = ln.get("purchaseDate")?.asText() ?: java.time.Instant.now().toString()
-                                    val playtime = ln.get("playtime")?.asInt() ?: 0
-                                    library.add(org.example.model.GameOwnership(gameId = gid, gameName = gname, purchaseDate = purchaseDate, playtime = playtime))
+                                        val playtime = ln.get("playtime")?.asInt() ?: 0
+                                        val platform = ln.get("platform")?.asText()
+                                        library.add(org.example.model.GameOwnership(gameId = gid, gameName = gname, purchaseDate = purchaseDate, playtime = playtime, lastPlayed = null, pricePaid = 0.0, platform = platform))
                                 }
                             }
                         }
@@ -370,7 +448,6 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
     }
 
     override suspend fun getRatings(gameId: String): List<Rating> = emptyList()
-    override suspend fun addRating(gameId: String, rating: Rating): Boolean = false
     
     // === Votes sur évaluations (stockage en mémoire pour le moment) ===
     private val ratingsStore = mutableMapOf<String, Rating>()

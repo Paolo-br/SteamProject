@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.example.ui.viewmodel.GameDetailViewModel
+import org.example.model.DistributionPlatform
 import org.example.ui.viewmodel.UiState
 
 /**
@@ -155,10 +156,11 @@ private fun GameInfoSection(data: org.example.ui.viewmodel.GameDetailData) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(32.dp)
             ) {
-                InfoItem("Support", data.game.hardwareSupport ?: "N/A")
+                InfoItem("Console", data.game.hardwareSupport ?: "N/A")
+                val distName = data.game.distributionPlatformId?.let { DistributionPlatform.fromId(it)?.name ?: it } ?: "N/A"
+                InfoItem("Distribution", distName)
                 InfoItem("Genre", data.game.genre ?: "N/A")
                 InfoItem("Année", data.game.releaseYear?.toString() ?: "N/A")
-                InfoItem("Éditeur", data.publisher?.name ?: "N/A")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -191,15 +193,7 @@ private fun GameInfoSection(data: org.example.ui.viewmodel.GameDetailData) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Description
-            Text(
-                text = data.game.description ?: "Aucune description disponible.",
-                fontSize = 14.sp,
-                color = Color.DarkGray,
-                lineHeight = 20.sp
-            )
+            // Description removed: descriptions are not available in dataset
 
             // Statistiques de ventes
             if (data.game.salesGlobal != null) {

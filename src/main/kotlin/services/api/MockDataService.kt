@@ -20,7 +20,6 @@ class MockDataService : DataService {
     override suspend fun getPatchesByGame(gameId: String): List<Patch> = emptyList()
     override suspend fun getRecentPatches(limit: Int): List<Patch> = emptyList()
     override suspend fun getRatings(gameId: String): List<Rating> = emptyList()
-    override suspend fun addRating(gameId: String, rating: Rating): Boolean = false
     override suspend fun voteOnRating(ratingId: String, voterId: String, isHelpful: Boolean): Boolean = false
     override suspend fun getRating(ratingId: String): Rating? = null
     override suspend fun getComments(gameId: String): List<Comment> = emptyList()

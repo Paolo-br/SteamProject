@@ -118,31 +118,7 @@ class RatingsViewModel : BaseViewModel() {
     /**
      * Soumet une nouvelle évaluation.
      */
-    fun submitRating(gameId: String, score: Int, comment: String, username: String = "Anonymous") {
-        viewModelScope.launch {
-            try {
-                val dataService = ServiceLocator.dataService
-
-                // Créer la nouvelle évaluation
-                val newRating = Rating(
-                    username = username,
-                    rating = score,
-                    comment = comment,
-                    date = java.time.LocalDate.now().format(
-                        java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")
-                    )
-                )
-
-                // Simuler l'ajout via le service
-                dataService.addRating(gameId, newRating)
-
-                // Recharger les données pour afficher la nouvelle évaluation
-                loadRatings()
-            } catch (e: Exception) {
-                _uiState.value = UiState.Error("Erreur lors de la soumission: ${e.message}")
-            }
-        }
-    }
+    // Rating submission removed: ratings are created only via events.
 
     /**
      * Sélectionne un jeu pour afficher ses évaluations.
