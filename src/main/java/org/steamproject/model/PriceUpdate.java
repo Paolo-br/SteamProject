@@ -2,9 +2,8 @@ package org.steamproject.model;
 
 /**
  * Représente une mise à jour de prix pour un jeu.
- * Cette classe utilise le pattern record  car PriceUpdate est un 
- * transporteur de données immuable
-*/
+
+ */
 public record PriceUpdate(
     String id,
     String gameId,

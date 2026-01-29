@@ -1,5 +1,10 @@
 package org.steamproject.model;
 
+/**
+ * Modèle de données représentant un jeu vidéo.
+ *
+
+ */
 public class Game {
     private String id;
     private String name;

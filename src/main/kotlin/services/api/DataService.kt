@@ -4,10 +4,6 @@ import org.example.model.*
 
 /**
  * Interface abstraite pour les services de données.
- * Permet de basculer facilement entre mock et implémentation réelle.
- *
- * Architecture découplée : l'UI ne dépend que de cette interface,
- * l'implémentation (mock ou réelle) peut changer sans impact.
  */
 interface DataService {
 

@@ -14,11 +14,11 @@ import java.time.Instant
 import java.time.Duration
 
 /**
- * Projection-backed `DataService` implementation.
+ * Implémentation de `DataService` basée sur les projections.
  *
- * Calls the local projection REST endpoints (Streams / Purchase REST). When the
- * projection service is unavailable, falls back to `MockDataService` to remain
- * non-breaking for the UI.
+ * Appelle les endpoints REST locaux de projection (Streams / Purchase).
+ * Si le service de projection est indisponible, l'implémentation retombe
+ * sur des valeurs de secours pour ne pas casser l'interface utilisateur.
  */
 class ProjectionDataService(private val restBaseUrl: String = "http://localhost:8080") : DataService {
     private val client: HttpClient = HttpClient.newBuilder()
@@ -34,7 +34,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
         } catch (_: Exception) { null }
     }
 
-    // Synchronously fetch all player reviews and index them by gameId
+    // Récupère de manière synchrone toutes les évaluations et les indexe par gameId
     private fun fetchAllReviewsByGame(): Map<String, List<Rating>> {
         try {
             val playersBody = safeGet("/api/players") ?: return emptyMap()
@@ -84,7 +84,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
 
     private fun tryFetchCatalogFromRest(): List<Game>? {
         val body = safeGet("/api/catalog") ?: return null
-        // Temporary debug log to help diagnose UI/projection mismatch
+        // Log temporaire pour aider à diagnostiquer un éventuel décalage UI/projection
         try {
             println("ProjectionDataService: fetched /api/catalog length=${'$'}{body.length} sample=${'$'}{body.take(200)}")
         } catch (_: Exception) { /* ignore logging errors */ }
@@ -353,7 +353,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
 
     override suspend fun getAllPatches(): List<Patch> = withContext(Dispatchers.IO) {
         val out = mutableListOf<Patch>()
-        // We can't reconstruct full Patch objects from versions; instead aggregate from raw JSON
+        // Impossible de reconstituer des objets Patch complets depuis les seules versions ; on agrège donc depuis le JSON brut
         try {
             val body = safeGet("/api/catalog") ?: return@withContext emptyList()
             val node = mapper.readTree(body)

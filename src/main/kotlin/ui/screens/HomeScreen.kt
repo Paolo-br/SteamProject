@@ -29,7 +29,7 @@ fun HomeScreen(
     onNavigate: (Screen) -> Unit
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
-        // Sidebar navigation
+        // Barre latérale de navigation
         Sidebar(onNavigate = onNavigate)
 
         // Contenu principal
@@ -90,7 +90,7 @@ private fun Sidebar(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Menu items
+        // Éléments du menu
         MenuItem(
             icon = Icons.Default.PlayArrow,
             label = "Jeux",

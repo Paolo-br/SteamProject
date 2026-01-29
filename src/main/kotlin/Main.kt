@@ -19,7 +19,7 @@ import org.example.ui.screens.*
 
 /**
  * Point d'entrée de l'application Steam Project.
- * Compose Desktop + Navigation simple + Services Mock.
+ * Compose Desktop + Navigation simple + Services.
  */
 fun main() = application {
     // Initialiser les services au démarrage

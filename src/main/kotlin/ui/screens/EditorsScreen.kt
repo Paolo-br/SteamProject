@@ -86,6 +86,22 @@ fun EditorsScreen(
                     placeholder = "Rechercher un éditeur..."
                 )
 
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Case à cocher pour ne montrer que les éditeurs ayant publié des jeux
+                val publishedOnly by viewModel.publishedOnly
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Checkbox(
+                        checked = publishedOnly,
+                        onCheckedChange = { viewModel.setPublishedOnly(it) }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Afficher seulement les éditeurs ayant publié des jeux")
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
                 EditorTable(
                     modifier = Modifier.fillMaxWidth(),

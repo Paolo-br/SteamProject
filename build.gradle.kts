@@ -6,7 +6,6 @@ plugins {
     id("org.jetbrains.compose") version "1.6.11"
     id("org.jetbrains.kotlin.plugin.compose") version "2.0.21"
     kotlin("plugin.serialization") version "2.0.21"
-    // Plugin Avro pour générer les classes Java/POJO à partir des .avsc
     id("com.github.davidmc24.gradle.plugin.avro") version "1.5.0"
 }
 
@@ -16,46 +15,30 @@ version = "1.0-SNAPSHOT"
 repositories {
     mavenCentral()
     google()
-    // Dépôt nécessaire pour certains artefacts de Compose Multiplatform / Compose Desktop
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
-    // Confluent packages (si besoin) - on laisse mavenCentral en tête, mais on peut ajouter Confluent si nécessaire
     maven("https://packages.confluent.io/maven/")
 }
 
 dependencies {
-    // Compose Desktop (version fournie par le plugin)
     implementation(compose.desktop.currentOs)
 
-    // Coroutines Swing pour le Main dispatcher sur Desktop
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.8.1")
 
-    // KotlinX Serialization JSON
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
-    // Kafka / Confluent / Jackson nécessaires pour le backend
     implementation("org.apache.kafka:kafka-clients:3.6.1")
     implementation("org.apache.kafka:kafka-streams:3.6.1")
     implementation("io.confluent:kafka-avro-serializer:7.4.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
-    // Jackson Kotlin module to support `jacksonObjectMapper()` and Kotlin generic readValue<T>()
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.15.2")
-    // Reflection is required by some Jackson Kotlin features
     implementation("org.jetbrains.kotlin:kotlin-reflect:1.8.22")
-    // Simple SLF4J binding for development / readable logs
     implementation("org.slf4j:slf4j-simple:1.7.36")
 
     testImplementation(kotlin("test"))
-    // Data faker for generating fake players/publishers in Java service
     implementation("net.datafaker:datafaker:1.7.0")
 }
 
-// Configuration du plugin Avro : (utilise la valeur par défaut du plugin)
-// Si vous souhaitez utiliser le dossier racine `/avro`, on peut le reconfigurer
-// via l'extension du plugin au lieu de manipuler directement la tâche.
 
-// S'assurer que le dossier généré par Avro est inclus dans les sources Java/Kotlin
-// Le plugin génère habituellement dans build/generated-main-avro-java ou similaire. On ajoute
-// quelques dossiers communs pour être sûrs qu'ils sont inclus.
 sourceSets {
     val main by getting {
         java.srcDir("build/generated-main-avro-java")
@@ -73,22 +56,16 @@ kotlin {
 
 compose.desktop {
     application {
-        // Main class doit être le FQCN (Main.kt est dans le package org.example)
         mainClass = "org.example.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "MyApp"
-            packageVersion = "1.0.0"    // version stable obligatoire pour DMG/MSI/DEB
+            packageVersion = "1.0.0"    
         }
     }
 }
 
-// Test producers removed from main workflow. Use admin tools or tools/test folder.
 
-// NOTE: Test-only runner tasks that previously sent synthetic or hardcoded
-// events have been removed from the main workflow to keep the project
-// event-driven with real ingestion. Move any Test*Producer utilities to
-// a `tools/` or `admin/` folder if interactive runners are required.
 
 tasks.register<JavaExec>("runPurchaseConsumer") {
     group = "application"
@@ -122,7 +99,6 @@ tasks.register<JavaExec>("runPlatformConsumer") {
     dependsOn("generateAvroJava", "classes")
 }
 
-// Test producers removed from main workflow. Use admin tools or tools/test folder.
 
 tasks.register<JavaExec>("runCreatePlayer") {
     group = "application"
@@ -141,7 +117,6 @@ tasks.register<JavaExec>("runStreamsRest") {
     dependsOn("generateAvroJava", "classes")
 }
 
-// Run the small Purchase REST service (uses Jackson on the runtime classpath)
 tasks.register<JavaExec>("runPurchaseRest") {
     group = "application"
     description = "Run PurchaseRestService (HTTP endpoint for player library)"
@@ -150,16 +125,11 @@ tasks.register<JavaExec>("runPurchaseRest") {
     dependsOn("generateAvroJava", "classes")
 }
 
-// Convenience tasks for test producers located in tools/test
-// Test producer tasks removed to enforce ingestion-driven data.
-
-// Real producer runners
 tasks.register<JavaExec>("runPublishGame") {
     group = "application"
     description = "Run real publisher producer app to emit GameReleasedEvent"
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("org.steamproject.infra.kafka.producer.PublisherProducerApp")
-    // Allow overriding target game via -PgameId when invoking Gradle
     val extra: Map<String, Any> = if (project.hasProperty("gameId")) mapOf("game.id" to project.property("gameId").toString()) else mapOf()
     systemProperties = extra
     dependsOn("generateAvroJava", "classes")
@@ -233,13 +203,6 @@ tasks.register<JavaExec>("runPublishEditorResponded") {
     dependsOn("generateAvroJava", "classes")
 }
 
-tasks.register<JavaExec>("runSendPurchase") {
-    group = "application"
-    description = "Run real GamePurchaseProducerApp to emit GamePurchaseEvent"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.steamproject.infra.kafka.producer.GamePurchaseProducerApp")
-    dependsOn("generateAvroJava", "classes")
-}
 
 tasks.register<JavaExec>("runPlayerProducer") {
     group = "application"
@@ -265,10 +228,3 @@ tasks.register<JavaExec>("runPlayerEventsConsumer") {
     dependsOn("generateAvroJava", "classes")
 }
 
-tasks.register<JavaExec>("runCleanLibrary") {
-    group = "application"
-    description = "Remove orphaned entries from PlayerLibraryProjection"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.steamproject.tools.PlayerLibraryCleaner")
-    dependsOn("generateAvroJava", "classes")
-}

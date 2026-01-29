@@ -3,6 +3,14 @@ package org.steamproject.model;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Représente un patch / une mise à jour logicielle pour un jeu.
+ *
+ * Cette classe joue le rôle de transporteur de données contenant les
+ * métadonnées du patch (versions, type, description, liste de changements,
+ * taille et date de publication). On peut ajouter une validation à la
+ * création si nécessaire.
+ */
 public class Patch {
     private String id;
     private String gameId;

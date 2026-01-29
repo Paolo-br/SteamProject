@@ -93,8 +93,7 @@ public sealed interface Platform permits Platform.Console, Platform.PC, Platform
     }
     
     /**
-     * Factory method pour créer une Platform à partir d'un code de plateforme existant.
-    */
+
     static Platform fromCode(String code) {
         if (code == null || code.isBlank()) {
             return new PC("PC", "PC");
@@ -132,7 +131,6 @@ public sealed interface Platform permits Platform.Console, Platform.PC, Platform
     }
     
     /**
-     *Méthode utilisant le pattern matching sur les types scellés.
      */
     static String getDescription(Platform platform) {
         return switch (platform) {

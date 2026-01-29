@@ -44,14 +44,26 @@ class EditorsViewModel : BaseViewModel() {
     private val _searchQuery: MutableState<String> = mutableStateOf("")
     val searchQuery: State<String> = _searchQuery
 
+    // Filtrer pour ne montrer que les éditeurs ayant publié des jeux
+    private val _publishedOnly: MutableState<Boolean> = mutableStateOf(false)
+    val publishedOnly: State<Boolean> = _publishedOnly
+
+    fun setPublishedOnly(value: Boolean) {
+        _publishedOnly.value = value
+    }
+
     fun updateSearchQuery(q: String) {
         _searchQuery.value = q
     }
 
     /** Liste filtrée selon la requête de recherche */
     val filteredPublishers: List<Publisher>
-        get() = if (searchQuery.value.isBlank()) publishers
-        else publishers.filter { it.name?.contains(searchQuery.value, ignoreCase = true) ?: false }
+        get() {
+            val base = if (searchQuery.value.isBlank()) publishers
+            else publishers.filter { it.name.contains(searchQuery.value, ignoreCase = true) }
+
+            return if (publishedOnly.value) base.filter { it.gamesPublished > 0 } else base
+        }
 
     init {
         loadPublishers()

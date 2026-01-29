@@ -2,9 +2,10 @@ package org.steamproject.model;
 
 /**
  * Représente une évaluation/note donnée par un joueur à un jeu.
- * 
- * Cette classe utilise le pattern Builder .
-*/
+ *
+ * Cette classe utilise le motif Builder (classe interne) pour construire
+ * des instances de manière fluide et sécurisée.
+ */
 public class Rating {
     private final String username;
     private final int rating; // 1..5

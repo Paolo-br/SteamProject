@@ -125,9 +125,9 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
         )
     }
 
-    // Try to fetch a REST-projected catalog from a local service.
-    // Returns an empty list when the projection is available but contains no entries.
-    // Returns null when the projection is unavailable (HTTP error / connection problem).
+    // Tentative de récupération d'un catalogue projeté via REST depuis un service local.
+    // Retourne une liste vide si la projection est disponible mais vide.
+    // Retourne null si la projection est indisponible (erreur HTTP / problème de connexion).
     private fun tryFetchCatalogFromRest(): List<Game>? {
         return try {
             val client = HttpClient.newHttpClient()
@@ -194,9 +194,9 @@ class JavaBackedDataService(private val resourcePath: String = "/data/vgsales.cs
     }
 
     override suspend fun getCatalog(): List<Game> = withContext(Dispatchers.IO) {
-        // Use REST projection as the single source of truth for catalog.
-        // If the projection service is unavailable, return an empty list
-        // (do NOT fall back to CSV seed data).
+        // Utilise la projection REST comme source unique de vérité pour le catalogue.
+        // Si le service de projection est indisponible, retourne une liste vide
+        // (ne PAS revenir aux données CSV d'ingestion).
         try {
             val rest = tryFetchCatalogFromRest()
             return@withContext rest ?: emptyList()

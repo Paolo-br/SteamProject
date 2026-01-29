@@ -2,67 +2,61 @@ package org.example.services
 
 import org.example.services.api.DataService
 import org.example.services.api.JavaBackedDataService
-import org.example.services.api.MockDataService
 import org.example.services.api.ProjectionDataService
 import org.example.model.*
 
 /**
- * Service Locator pattern pour l'injection de dépendances.
+ * Patron Service Locator pour l'injection de dépendances.
+ * Fournit une résolution centralisée des implémentations de `DataService`.
  */
 object ServiceLocator {
-    /** Service de données de secours (retourne des listes vides). */
-    private val mockDataService: DataService = MockDataService()
+    // Mock implementation removed; rely on available services (projection/java-backed)
 
-    // Try to instantiate Java-backed service (local JVM service using CSV seed)
+    // Tentative d'instanciation du service Java local (seed CSV)
     private val javaBacked: DataService? = try {
         JavaBackedDataService()
     } catch (ex: Throwable) {
         null
     }
 
-    // Projection-backed service (calls Streams/Projection REST endpoints).
+    // Service basé sur les projections (appelle les endpoints REST de projection).
     private val projectionService: DataService? = try {
         ProjectionDataService()
     } catch (ex: Throwable) {
         null
     }
 
-    /**
-     * Feature toggles (env or system properties):
-     * - USE_PROJECTIONS=true|false (default true)
-     * - FORCE_MOCK=true forces MockDataService regardless
-     */
-    // Resolve environment / system properties to booleans
+
+    // Résolution des variables d'environnement / propriétés système en booléens
     private val useProjections: Boolean = ((System.getProperty("use.projections")
         ?: System.getenv("USE_PROJECTIONS")
         ?: "true").toLowerCase() == "true")
-    private val forceMock: Boolean = ((System.getProperty("force.mock") ?: System.getenv("FORCE_MOCK") ?: "false").toLowerCase() == "true")
 
     val dataService: DataService
         get() {
-            if (forceMock) return mockDataService
-            // Prefer projection service by default (production mode). If unavailable,
-            // fall back to Java-backed service, then mock as last resort.
+            // Par défaut on préfère le service de projection (mode production). Si indisponible,
+            // on revient au service Java local. Si aucun service n'est disponible, lever une exception.
             if (useProjections) {
-                return projectionService ?: javaBacked ?: mockDataService
+                return projectionService ?: javaBacked
+                    ?: throw IllegalStateException("Aucun DataService disponible: ProjectionDataService et JavaBackedDataService indisponibles")
             }
-            // Projections disabled: prefer Java-backed then mock
-            return javaBacked ?: mockDataService
+            // Si les projections sont désactivées : préférer le service Java local puis la projection
+            return javaBacked ?: projectionService
+                ?: throw IllegalStateException("Aucun DataService disponible: JavaBackedDataService et ProjectionDataService indisponibles")
         }
 
     /** Initialise les services (à appeler au démarrage de l'application). */
     fun initialize() {
         val which = when {
-            forceMock -> "MockDataService (forced)"
             useProjections && projectionService != null -> "ProjectionDataService"
             javaBacked != null -> "JavaBackedDataService"
-            else -> "MockDataService"
+            else -> "Aucun DataService disponible"
         }
-        println("Initialisation des services front-only (using $which)...")
+        println("Initialisation des services frontaux (utilisation : $which)...")
     }
 
     /** Arrête proprement les services (à appeler à la fermeture de l'application). */
     fun shutdown() {
-        println("Arrêt des services front-only")
+        println("Arrêt des services frontaux")
     }
 }

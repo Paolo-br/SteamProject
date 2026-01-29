@@ -1,186 +1,276 @@
 # 🎮 Steam Project - Plateforme de Gestion de Jeux Vidéo
 
-### Lancer le projet
-# Steam Project — Guide d'installation et lancement (pas-à-pas)
+> Application desktop de gestion d'une plateforme de jeux vidéo style Steam, construite avec **Kotlin**, **Compose Desktop**, **Apache Kafka** et **Avro**.
 
-Ce document explique comment configurer une machine de développement et lancer l'interface graphique (Compose Desktop) ainsi que l'infrastructure dépendante (Kafka, Schema Registry, Postgres).
+---
 
-Prérequis rapides
-- Git (pour cloner le dépôt)
-- Java 21 (JDK) — obligatoire pour compiler et exécuter
-- Docker & Docker Compose (pour lancer Kafka / Schema Registry / Postgres localement)
-- Windows: utilisez `gradlew.bat`; Unix/macOS: `./gradlew`
+## 📋 Table des matières
 
-Table des matières
-- **Installation JDK**
-- **Cloner le projet**
-- **Vérifications rapides**
-- **Démarrer l'infrastructure Docker**
-- **Lancer l'interface (dev)**
-- **Construire un artefact**
-- **Dépannage & conseils**
-- **CI / Distribution (suggestions)**
+1. [Prérequis](#-prérequis)
+2. [Installation rapide](#-installation-rapide)
+3. [Lancement du projet](#️-lancement-du-projet)
+4. [Architecture du projet](#-architecture-du-projet)
+5. [Commandes Gradle disponibles](#️-commandes-gradle-disponibles)
+6. [Dépannage](#-dépannage)
 
-1) Installation JDK 21
--- Vérifier la version installée:
-```bash
-java -version
-```
--- Vous devez voir `java 21` ou équivalent. Si non installé :
-- Windows: installer Temurin/Adoptium, Azul ou Oracle JDK 21 et définir `JAVA_HOME`.
-- macOS: `brew install --cask temurin` ou installer via l'installateur officiel.
-- Linux: utiliser votre gestionnaire de paquets ou SDKMAN (`sdk install java 21-open`).
+---
 
-2) Cloner le dépôt
+## 🔧 Prérequis
+
+Avant de commencer, assurez-vous d'avoir installé les outils suivants :
+
+| Outil | Version requise | Vérification |
+|-------|-----------------|--------------|
+| **JDK** | 21+ | `java -version` |
+| **Docker** | Dernière version | `docker --version` |
+| **Docker Compose** | Dernière version | `docker-compose --version` |
+| **Git** | Dernière version | `git --version` |
+
+### Installation du JDK 21
+
+- **Windows** : Télécharger [Adoptium Temurin 21](https://adoptium.net/) et définir `JAVA_HOME`
+- **macOS** : `brew install --cask temurin@21`
+- **Linux** : `sdk install java 21-open` (via SDKMAN)
+
+> ⚠️ **Important** : Utilisez `gradlew.bat` sur Windows et `./gradlew` sur macOS/Linux.
+
+---
+
+## 🚀 Installation rapide
+
+### 1. Cloner le dépôt
+
 ```bash
 git clone <url-du-repo>
-cd <nom-du-repo>
+cd SteamProject
 ```
 
-3) Vérifications rapides dans le repo
-- Vérifier la présence du wrapper Gradle (`gradlew`, `gradlew.bat`) et du fichier `build.gradle.kts`.
-- Confirmer le point d'entrée de l'application: `src/main/kotlin/Main.kt` (mainClass = `org.example.MainKt`).
+### 2. Vérifier l'installation
 
-4) Démarrer l'infrastructure 
-- Démarrer les services Docker requis (Kafka, Schema Registry, Postgres):
-```bash
-docker-compose up -d
-docker-compose ps
-```
-- Vérifier que les ports sont ouverts (`9092` pour Kafka, `8081` pour Schema Registry, `5432` pour Postgres).
-
-
-5) Lancer l'interface en mode développement
-- Sur Windows (PowerShell):
 ```powershell
-# SteamProject — Démarrage et exécution
+# Windows (PowerShell)
+java -version            # Doit afficher Java 21+
+docker --version         # Doit afficher Docker installé
+.\gradlew.bat --version  # Doit afficher Gradle 8.x
+```
 
-Ce README explique comment préparer la machine, démarrer l'infrastructure (Kafka / Schema Registry), lancer les services de projection, produire des événements et exécuter l'UI.
+---
 
-**Prérequis**
+## ▶️ Lancement du projet
 
-- JDK 17+ (ou la version requise par le projet) disponible dans `PATH`.
-- Docker & Docker Compose (recommandé pour Kafka + Schema Registry).
-- Utiliser le wrapper Gradle fourni (`gradlew` / `gradlew.bat`).
+### Étape 1 : Démarrer l'infrastructure Docker
 
-Ports par défaut
+Lancez les services Kafka, Zookeeper et Schema Registry :
 
-- Kafka: `localhost:9092`
-- Schema Registry: `http://localhost:8081`
-- Services de projection REST: `http://localhost:8080`
-
-1) Démarrer l'infrastructure (Docker)
-
-```bash
+```powershell
 docker-compose up -d
+```
+
+Vérifiez que tous les services sont en cours d'exécution :
+
+```powershell
 docker-compose ps
 ```
 
-2) Compiler / générer les classes Avro (si nécessaire)
+**Services démarrés :**
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Zookeeper | 2181 | Coordination Kafka |
+| Kafka | 9092 | Broker de messages |
+| Schema Registry | 8081 | Registre des schémas Avro |
+
+### Étape 2 : Compiler le projet et générer les classes Avro
 
 ```powershell
 .\gradlew.bat generateAvroJava classes --no-daemon
-# ou Unix/macOS
-./gradlew generateAvroJava classes --no-daemon
 ```
 
-3) Lancer les services de projection (Kafka Streams + REST)
+### Étape 3 : Lancer le service REST (projection Kafka Streams)
+
+Dans un **premier terminal**, lancez le service backend :
 
 ```powershell
 .\gradlew.bat runPurchaseRest --no-daemon
-# ou, selon la tâche exposée dans votre build:
-.\gradlew.bat runStreamsRest --no-daemon
 ```
 
-Le service REST expose par défaut les endpoints suivants :
+> ✅ Le service REST sera accessible sur `http://localhost:8080`
 
-- `GET /api/players`
-- `GET /api/players/{playerId}/library`
-- `GET /api/catalog`
-- `GET /api/publishers-list`
+**Endpoints disponibles :**
 
-Test rapide de l'API :
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/players` | Liste des joueurs |
+| `GET /api/players/{playerId}/library` | Bibliothèque d'un joueur |
+| `GET /api/catalog` | Catalogue des jeux |
+| `GET /api/publishers-list` | Liste des éditeurs |
 
-```powershell
-curl.exe -sS "http://localhost:8080/api/players"
-curl.exe -sS "http://localhost:8080/api/players/player-001/library"
-```
+### Étape 4 : Lancer l'interface graphique (UI)
 
-4) Produire des événements via les outils d'administration
-
-Les outils sont organisés dans :
-
-- `tools/admin/` — utilitaires d'admin (conservés pour usage opérationnel)
-- `tools/test/` — producteurs de test (copies conservées pour tests manuels)
-
-Exemple — créer un joueur de test :
-
-```powershell
-$Env:TEST_PLAYER_ID = "player-001"
-.\gradlew.bat runCreatePlayer --no-daemon
-```
-
-Exemple — envoyer un achat de test :
-
-```powershell
-$Env:TEST_PLAYER_ID = "player-001"
-.\gradlew.bat runTestPurchaseForPlayer --no-daemon
-```
-
-5) Lancer l'UI (Compose Desktop)
+Dans un **second terminal**, lancez l'application desktop :
 
 ```powershell
 .\gradlew.bat run --no-daemon
 ```
 
-L'UI interroge par défaut le service de projection (`http://localhost:8080`). Pour forcer l'utilisation des mocks, passez la propriété `force.mock=true` ou `-Pforce.mock=true`.
+> 🎉 **L'application Steam Project s'ouvre !**
 
-6) Exécuter la suite de tests
+---
 
-```powershell
-.\gradlew.bat test
+## 📁 Architecture du projet
+
+```
+SteamProject/
+├── src/
+│   ├── main/
+│   │   ├── avro/                    # Schémas Avro (événements Kafka)
+│   │   ├── java/                    # Services Kafka (consumers, producers, streams)
+│   │   │   └── org/steamproject/
+│   │   │       └── infra/kafka/
+│   │   ├── kotlin/                  # Application UI (Compose Desktop)
+│   │   │   ├── Main.kt              # Point d'entrée
+│   │   │   ├── model/               # Modèles de données
+│   │   │   ├── services/            # Couche services
+│   │   │   ├── ui/                  # Composants UI
+│   │   │   │   ├── components/      # Composants réutilisables
+│   │   │   │   ├── screens/         # Écrans de l'application
+│   │   │   │   └── navigation/      # Gestion de la navigation
+│   │   │   └── state/               # Gestion d'état
+│   │   └── resources/               # Ressources (données CSV, etc.)
+├── build.gradle.kts                 # Configuration Gradle
+├── docker-compose.yml               # Infrastructure Docker
+└── README.md                        # Ce fichier
 ```
 
-7) Configuration avancée / variables d'environnement
+---
 
-Vous pouvez surcharger les endpoints Kafka / Schema Registry via des variables d'environnement ou propriétés Gradle/JVM :
+## 🛠️ Commandes Gradle disponibles
+
+### Commandes principales
+
+| Commande | Description |
+|----------|-------------|
+| `.\gradlew.bat run` | 🖥️ Lancer l'UI Compose Desktop |
+| `.\gradlew.bat runPurchaseRest` | 🌐 Lancer le service REST |
+| `.\gradlew.bat generateAvroJava` | 📦 Générer les classes Avro |
+| `.\gradlew.bat build` | 🔨 Compiler le projet |
+| `.\gradlew.bat clean` | 🧹 Nettoyer le projet |
+
+### Commandes de production d'événements
+
+| Commande | Description |
+|----------|-------------|
+| `.\gradlew.bat -Pmode=create runPlayerProducer` | Produire des événements joueur |
+| `.\gradlew.bat runPublishGame` | Publier un jeu |
+| `.\gradlew.bat runPublishPatch` | Publier un patch |
+| `.\gradlew.bat runPublishDlc` | Publier un DLC |
+| `.\gradlew.bat -Pmode=purchase runPlayerProducer` | Simuler un achat |
+| `.\gradlew.bat -Pmode=crash runPlayerProducer` | Simuler un crash parmi les jeux |
+| `.\gradlew.bat -Pmode=playsession runPlayerProducer` | Simuler une session de jeux |
+| `.\gradlew.bat -Pmode=dlc_purchase runPlayerProducer` | Simuler un achat de DLC |
+| `.\gradlew.bat -Pmode=rate runPlayerProducer`| Simuler une note |
+
+---
+
+## 🐛 Dépannage
+
+### L'UI ne s'affiche pas ou reste vide
+
+1. **Vérifiez que Docker est en cours d'exécution :**
+   ```powershell
+   docker-compose ps
+   ```
+
+2. **Vérifiez que le service REST répond :**
+   ```powershell
+   curl.exe http://localhost:8080/api/players
+   ```
+
+3. **Redémarrez l'infrastructure :**
+   ```powershell
+   docker-compose down
+   docker-compose up -d
+   ```
+
+### Erreurs de compilation Avro
+
+Régénérez les classes Avro :
 
 ```powershell
-$Env:KAFKA_BOOTSTRAP_SERVERS = "broker:9092"
-$Env:SCHEMA_REGISTRY_URL = "http://schema-registry:8081"
-.\gradlew.bat runPurchaseRest
+.\gradlew.bat clean generateAvroJava classes --no-daemon
 ```
 
-ou via options Gradle :
+### Erreurs liées à OneDrive (Windows)
+
+Si vous rencontrez des erreurs de fichiers verrouillés, déplacez le projet hors du dossier OneDrive synchronisé.
+
+### Ports déjà utilisés
+
+Vérifiez les ports utilisés et arrêtez les processus conflictuels :
 
 ```powershell
-.\gradlew.bat runPurchaseRest -Pkafka.bootstrap.servers=broker:9092 -Pschema.registry.url=http://schema-registry:8081
+netstat -ano | findstr :9092   # Kafka
+netstat -ano | findstr :8081   # Schema Registry
+netstat -ano | findstr :8080   # Service REST
 ```
 
-8) Emplacements utiles
+### Réinitialisation complète
 
-- Schémas Avro: `src/main/avro/`
-- Services de projection / REST: `src/main/java/org/steamproject/infra/kafka/streams` et `src/main/java/org/steamproject/infra/kafka/consumer`
-- UI Kotlin: `src/main/kotlin/`
-- Outils d'admin / test: `tools/admin/` et `tools/test/`
-
-9) Dépannage rapide
-
-- L'UI est vide → vérifier `http://localhost:8080/api/players` et que les events arrivent sur Kafka.
-- Erreurs Avro → vérifier que le Schema Registry est accessible et que les schémas ont été générés.
-- Problèmes de build liés à OneDrive → déplacer le projet hors des dossiers synchronisés si vous rencontrez des erreurs de fichier verrouillé.
-
-Besoin d'automatiser le démarrage complet (Docker + services + UI) ? Je peux ajouter des scripts PowerShell/Batch pour lancer tout en une commande.
-```
-
-
-
-7) Vérifier la projection depuis la ligne de commande (ou via l'UI) :
-
-
+Si rien ne fonctionne, effectuez une réinitialisation complète :
 
 ```powershell
+# 1. Arrêter et supprimer les volumes Docker
+docker-compose down -v
 
-curl.exe http://localhost:8080/api/players/player-1/library
+# 2. Nettoyer le build Gradle
+.\gradlew.bat clean
+
+# 3. Redémarrer l'infrastructure
+docker-compose up -d
+
+# 4. Régénérer les classes Avro
+.\gradlew.bat generateAvroJava classes --no-daemon
+
+# 5. Lancer le service REST (Terminal 1)
+.\gradlew.bat runPurchaseRest --no-daemon
+
+# 6. Lancer l'UI (Terminal 2)
+.\gradlew.bat run --no-daemon
+```
+
+---
+
+## 👨‍💻 Technologies utilisées
+
+| Technologie | Utilisation |
+|-------------|-------------|
+| **Kotlin** | Langage principal |
+| **Compose Desktop** | Interface graphique |
+| **Apache Kafka** | Streaming d'événements |
+| **Avro** | Sérialisation des événements |
+| **Schema Registry** | Gestion des schémas |
+| **Gradle** | Build et dépendances |
+| **Docker** | Conteneurisation |
+
+---
+
+## 📝 Résumé des commandes
+
+```powershell
+# 1. Démarrer Docker
+docker-compose up -d
+
+# 2. Compiler le projet
+.\gradlew.bat generateAvroJava classes --no-daemon
+
+# 3. Lancer le backend (Terminal 1)
+.\gradlew.bat runPurchaseRest --no-daemon
+
+# 4. Lancer l'UI (Terminal 2)
+.\gradlew.bat run --no-daemon
+```
+
+---
+
 
 
