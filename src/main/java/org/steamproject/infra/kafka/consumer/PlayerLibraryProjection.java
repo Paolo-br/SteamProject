@@ -44,7 +44,7 @@ public class PlayerLibraryProjection {
                 }
             }
             if (!changed) {
-                return list; // no change
+                return list; 
             }
             return Collections.unmodifiableList(newList);
         });

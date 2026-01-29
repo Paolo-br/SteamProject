@@ -51,8 +51,8 @@ class GameDetailViewModel(private val gameId: String) : BaseViewModel() {
                 var game = dataService.getGame(gameId)
                     ?: throw IllegalArgumentException("Jeu non trouvé")
 
-                // Si la projection ne fournit pas l'année, récupérer depuis le CSV (fallback)
-                if (game.releaseYear == null) {
+                // Si la projection ne fournit pas une année valide (null ou 0), récupérer depuis le CSV (fallback)
+                if (game.releaseYear == null || game.releaseYear == 0) {
                     try {
                         val fallback = org.example.services.api.JavaBackedDataService().getGame(gameId)
                         if (fallback != null && fallback.releaseYear != null) {

@@ -62,7 +62,13 @@ public class PatchService {
         p.setGameName(game.getName());
         p.setPlatform(game.getPlatform());
         p.setOldVersion(oldVersion);
-        p.setNewVersion(newVersion);
+        try {
+            String computed = org.steamproject.util.Semver.nextVersionForPatchType(oldVersion, type == null ? org.steamproject.model.PatchType.FIX : type);
+            p.setNewVersion(computed);
+        } catch (Exception ex) {
+            if (newVersion != null && !newVersion.isBlank()) p.setNewVersion(newVersion);
+            else p.setNewVersion(org.steamproject.util.Semver.incrementPatch(oldVersion));
+        }
         p.setType(type);
         p.setDescription(description);
         if (changes != null) p.setChanges(List.copyOf(changes));

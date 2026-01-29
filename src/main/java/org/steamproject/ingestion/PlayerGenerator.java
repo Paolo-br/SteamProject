@@ -30,7 +30,6 @@ public class PlayerGenerator {
         for (int i = 0; i < count; i++) {
             Player p = new Player();
             p.setId(UUID.randomUUID().toString());
-            // Generate coherent personal info: first name, last name, email (prenom.nom@domain)
             String first = faker.name().firstName();
             String last = faker.name().lastName();
             String normFirst = normalizeForId(first);
@@ -60,7 +59,6 @@ public class PlayerGenerator {
                     do { idx = random.nextInt(availableGames.size()); } while (picks.contains(idx));
                     picks.add(idx);
                     org.steamproject.model.Game g = availableGames.get(idx);
-                    // ensure game id exists (may be computed by ingestion)
                     String gid = g.getId();
                     if (gid == null) {
                         try {
@@ -68,7 +66,6 @@ public class PlayerGenerator {
                             gid = java.util.UUID.nameUUIDFromBytes(key.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
                         } catch (Exception ex) { gid = UUID.randomUUID().toString(); }
                     }
-                    // Création du GameOwnership via le constructeur du record (immuable)
                     org.steamproject.model.GameOwnership go = new org.steamproject.model.GameOwnership(
                         gid,
                         g.getName(),

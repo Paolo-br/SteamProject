@@ -59,31 +59,16 @@ fun PlatformsScreen(
     // Filtrage par plateforme de distribution sélectionnée
     LaunchedEffect(selectedPlatform) {
         isLoading = true
-        val result: List<Game> = if (selectedPlatform == null) {
-            dataService.filterByDistributionPlatform(null)
-        } else {
+        val result: List<Game> = try {
+            // Capture local value to avoid smart-cast issues on delegated property
             val sp = selectedPlatform
             if (sp == null) {
                 dataService.filterByDistributionPlatform(null)
             } else {
-                try {
-                    val url = java.net.URL("http://localhost:8080/api/platforms/${sp.id}/catalog")
-                    val text = url.readText()
-                    val json = Json.parseToJsonElement(text)
-                    if (json is JsonArray) {
-                        json.mapNotNull { elem ->
-                            try {
-                                val obj = elem.jsonObject
-                                val id = obj["gameId"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                                val name = obj["gameName"]?.jsonPrimitive?.content ?: ""
-                                Game(id = id, name = name)
-                            } catch (_: Exception) { null }
-                        }
-                    } else emptyList()
-                } catch (_: Exception) {
-                    dataService.filterByDistributionPlatform(sp.id)
-                }
+                dataService.filterByDistributionPlatform(sp.id)
             }
+        } catch (_: Exception) {
+            emptyList()
         }
         games = result
         isLoading = false
@@ -437,8 +422,9 @@ private fun GamePlatformRow(
                     fontWeight = FontWeight.Medium
                 )
                 Row {
+                    val genreText = game.genre ?: "N/A"
                     Text(
-                        text = "${game.genre ?: "N/A"} • ${game.releaseYear ?: "?"} • ${game.publisherName ?: "?"}",
+                        text = "$genreText ",
                         style = MaterialTheme.typography.caption,
                         color = Color.Gray
                     )
@@ -446,9 +432,17 @@ private fun GamePlatformRow(
             }
             
             // Ventes globales
-            Column(horizontalAlignment = Alignment.End) {
+                Column(horizontalAlignment = Alignment.End) {
+                val salesText = game.salesGlobal?.let { v ->
+                    // if it's an integer-valued double, show without decimals
+                    if (kotlin.math.abs(v - v.toLong()) < 0.000001) {
+                        "%d".format(v.toLong())
+                    } else {
+                        String.format("%.2f", v)
+                    }
+                } ?: "-"
                 Text(
-                    text = String.format("%.2fM", game.salesGlobal ?: 0.0),
+                    text = salesText,
                     style = MaterialTheme.typography.body2,
                     fontWeight = FontWeight.Bold
                 )

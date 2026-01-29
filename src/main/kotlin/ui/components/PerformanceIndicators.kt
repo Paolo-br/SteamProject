@@ -7,6 +7,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,10 +39,21 @@ fun PerformanceIndicators(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Fetch publishers to compute top metrics
+            val publishersState by produceState(initialValue = emptyList<org.example.model.Publisher>()) {
+                value = try {
+                    org.example.services.ServiceLocator.dataService.getPublishers()
+                } catch (_: Exception) { emptyList() }
+            }
+
+            val topByGames = publishersState.maxByOrNull { it.gamesPublished }
+
             PerformanceCard(
                 title = "Meilleur score qualite",
                 backgroundColor = Color(0xFFE8F5E9),
                 textColor = Color(0xFF2E7D32),
+                mainText = "-",
+                subText = "-",
                 modifier = Modifier.weight(1f)
             )
 
@@ -48,6 +61,8 @@ fun PerformanceIndicators(
                 title = "Meilleure reactivite",
                 backgroundColor = Color(0xFFE3F2FD),
                 textColor = Color(0xFF1565C0),
+                mainText = "-",
+                subText = "-",
                 modifier = Modifier.weight(1f)
             )
 
@@ -55,6 +70,8 @@ fun PerformanceIndicators(
                 title = "Plus de jeux publies",
                 backgroundColor = Color(0xFFF3E5F5),
                 textColor = Color(0xFF6A1B9A),
+                mainText = topByGames?.name ?: "-",
+                subText = topByGames?.gamesPublished?.toString() ?: "-",
                 modifier = Modifier.weight(1f)
             )
         }
@@ -66,6 +83,8 @@ private fun PerformanceCard(
     title: String,
     backgroundColor: Color,
     textColor: Color,
+    mainText: String,
+    subText: String,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -91,7 +110,7 @@ private fun PerformanceCard(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "-",
+                text = mainText,
                 style = MaterialTheme.typography.h5,
                 color = textColor,
                 fontWeight = FontWeight.Bold
@@ -106,7 +125,7 @@ private fun PerformanceCard(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "-",
+                text = subText,
                 style = MaterialTheme.typography.caption,
                 color = textColor
             )

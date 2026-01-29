@@ -76,4 +76,36 @@ public final class Semver {
         int patch = parts.length > 2 ? parsePart(parts[2]) : 0;
         return major + "." + minor + "." + (patch + 1);
     }
+
+    /**
+     * Incrémente le composant patch d'un nombre donné.
+     */
+    public static String incrementPatchBy(String version, int delta) {
+        if (version == null) return "0.0." + (delta <= 0 ? 1 : delta);
+        String[] parts = normalize(version).split("\\.");
+        int major = parts.length > 0 ? parsePart(parts[0]) : 0;
+        int minor = parts.length > 1 ? parsePart(parts[1]) : 0;
+        int patch = parts.length > 2 ? parsePart(parts[2]) : 0;
+        return major + "." + minor + "." + (patch + delta);
+    }
+
+    /**
+     * Calcule la prochaine version selon le type de patch :
+     * - OPTIMIZATION : +0.0.01
+     * - FIX : +0.0.10
+     * - ADD : +0.1.00 (incrémente minor, remet patch à 0)
+     */
+    public static String nextVersionForPatchType(String version, org.steamproject.model.PatchType type) {
+        if (type == null) return incrementPatch(version);
+        switch (type) {
+            case OPTIMIZATION:
+                return incrementPatchBy(version, 1); // +0.0.01
+            case FIX:
+                return incrementPatchBy(version, 10); // +0.0.10
+            case ADD:
+                return incrementMinor(version); // +0.1.00
+            default:
+                return incrementPatch(version);
+        }
+    }
 }

@@ -16,7 +16,6 @@ public class PublisherEventsProducerApp {
         String topic = System.getProperty("kafka.topic.pub", "game-released-events");
         String type = System.getProperty("event.type", "patch"); // patch|dlc|published|updated|deprecate|respond
 
-        // Load games from ingestion so events are based on ingested dataset
         org.steamproject.ingestion.GameIngestion gi = new org.steamproject.ingestion.GameIngestion("/data/vgsales.csv");
         java.util.List<org.steamproject.model.Game> games = java.util.Collections.emptyList();
         try { games = gi.readAll(); } catch (Exception e) { /* fall back to random ids below */ }
@@ -24,18 +23,15 @@ public class PublisherEventsProducerApp {
         PublisherProducer p = new PublisherProducer(bootstrap, sr);
         Random rnd = new Random();
 
-        // choose a game from ingestion or fallback to generated id
         String requestedGameId = System.getProperty("game.id");
         org.steamproject.model.Game selected = null;
         if (requestedGameId != null && !requestedGameId.isEmpty() && games != null) {
             for (org.steamproject.model.Game g : games) if (requestedGameId.equals(g.getId())) { selected = g; break; }
         }
         if (selected == null && games != null && !games.isEmpty()) {
-            // pick random ingested game
             selected = games.get(rnd.nextInt(games.size()));
         }
 
-        // If no ingested game is available or specified, do not publish sample games.
         if (selected == null) {
             System.err.println("No ingested game found or game.id not provided. Aborting — do not publish sample games.");
             return;
@@ -48,7 +44,6 @@ public class PublisherEventsProducerApp {
         String platform = selected.getPlatform() != null ? selected.getPlatform() : System.getProperty("platform", "PC");
         String genre = selected.getGenre() != null ? selected.getGenre() : "";
 
-        // try to map publisher id from ingestion if not provided
         if ((samplePub == null || samplePub.isEmpty()) && selected != null) {
             try {
                 org.steamproject.ingestion.PublisherIngestion pin = new org.steamproject.ingestion.PublisherIngestion();
@@ -61,8 +56,6 @@ public class PublisherEventsProducerApp {
 
         switch (type) {
             case "published":
-                // Publish using ingested game's metadata when available
-                // Game ingestion does not provide version/price fields; use sensible defaults
                 p.publishGamePublished(sampleGameId, selected.getName(), samplePub, platform, genre == null ? "" : genre, "1.0.0", 0.0).get();
                 System.out.println("Sent GamePublishedEvent for " + sampleGameId);
                 break;
@@ -77,9 +70,7 @@ public class PublisherEventsProducerApp {
                 String newV = "1.1." + rnd.nextInt(100);
                 String gameName = selected.getName();
                 String oldV = "1.0.0";
-                // Ensure the target game is published AND owned (purchased) AND has at least one incident
                 try {
-                    // fetch catalog and purchases to determine published + owned games
                     HttpRequest catalogReq = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/catalog")).GET().build();
                     HttpResponse<String> catalogResp = httpClient.send(catalogReq, HttpResponse.BodyHandlers.ofString());
                     HttpRequest purchasesReq = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/purchases")).GET().build();
@@ -108,7 +99,6 @@ public class PublisherEventsProducerApp {
                             }
                         }
 
-                        // If a specific game was requested and it's in candidates, use it
                         boolean usedRequested = false;
                         if (requestedGameId != null && !requestedGameId.isEmpty()) {
                             for (JsonNode g : candidates) {
@@ -127,7 +117,6 @@ public class PublisherEventsProducerApp {
                                 System.err.println("No published+owned game with incidents found — cannot publish patch.");
                                 break;
                             }
-                            // pick random candidate
                             JsonNode chosen = candidates.get(rnd.nextInt(candidates.size()));
                             sampleGameId = chosen.get("gameId").asText(sampleGameId);
                             if (chosen.hasNonNull("platform")) platform = chosen.get("platform").asText(platform);
@@ -146,7 +135,6 @@ public class PublisherEventsProducerApp {
                 System.out.println("Sent PatchPublishedEvent newVersion=" + newV + " for " + sampleGameId);
                 break;
             case "dlc":
-                // Ensure the associated game is already published in the projection
                 try {
                     HttpRequest req = HttpRequest.newBuilder().uri(URI.create("http://localhost:8080/api/catalog")).GET().build();
                     HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -158,7 +146,6 @@ public class PublisherEventsProducerApp {
                                 if (g.hasNonNull("gameId") && sampleGameId.equals(g.get("gameId").asText())) { exists = true; break; }
                             }
                             if (!exists && arr.size() > 0) {
-                                // fallback: pick a published game from projection instead
                                 JsonNode g = arr.get(new Random().nextInt(arr.size()));
                                 sampleGameId = g.get("gameId").asText(sampleGameId);
                                 if (g.hasNonNull("platform")) platform = g.get("platform").asText(platform);
@@ -172,7 +159,6 @@ public class PublisherEventsProducerApp {
                         }
                     }
                 } catch (Exception ex) {
-                    // If projection unavailable, proceed but warn
                     System.err.println("Warning: could not verify published games via /api/catalog — proceeding to publish DLC");
                 }
                 String dlcId = UUID.randomUUID().toString();
@@ -180,7 +166,6 @@ public class PublisherEventsProducerApp {
                 System.out.println("Sent DlcPublishedEvent dlc=" + dlcId + " for " + sampleGameId);
                 break;
             case "deprecate":
-                // deprecate a sensible version if available
                 String deprecated = "1.0.0";
                 if (selected != null && selected.getYear() != null) deprecated = "1.0.0";
                 p.publishVersionDeprecated(sampleGameId, samplePub, platform, deprecated).get();

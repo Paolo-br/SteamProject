@@ -78,15 +78,13 @@ public class PlayerProjection {
         m.put("timestamp", timestamp);
         reviews.compute(playerId, (k, list) -> {
             if (list == null) return Collections.singletonList(Collections.unmodifiableMap(m));
-            // Prevent a player from adding more than one rating per game
             for (java.util.Map<String,Object> existing : list) {
                 try {
                     Object gid = existing.get("gameId");
                     if (gid != null && gid.equals(gameId)) {
-                        // already rated this game; ignore new rating
                         return list;
                     }
-                } catch (Throwable t) { /* ignore per-item errors */ }
+                } catch (Throwable t) { }
             }
             java.util.List<java.util.Map<String,Object>> nl = new java.util.ArrayList<>(list);
             nl.add(Collections.unmodifiableMap(m));

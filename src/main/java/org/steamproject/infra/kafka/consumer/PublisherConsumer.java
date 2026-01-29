@@ -86,11 +86,9 @@ public class PublisherConsumer {
             String initialVersion = evt.getInitialVersion() == null ? null : evt.getInitialVersion().toString();
             Double initialPrice = evt.getInitialPrice();
 
-            // maintain simple publisher list entry (gameId|gameName|releaseYear) for compatibility
             String summary = gameId + "|" + (gameName == null ? "" : gameName) + "|" + (releaseYear == null ? "" : releaseYear);
             PublisherProjection.getInstance().addPublishedGame(pubId, summary);
 
-            // infer distribution platform id from hardware/platform code
             String hwConsole = platform;
             org.steamproject.model.DistributionPlatform dp = org.steamproject.model.DistributionPlatform.inferFromHardwareCode(hwConsole);
             String distributionPlatform = dp == null ? "steam" : dp.getId();
@@ -111,7 +109,7 @@ public class PublisherConsumer {
                         .build();
                 try { pprod.sendCatalogUpdate(gameId, pc).get(); } catch (Exception e) { /* best-effort */ }
                 pprod.close();
-            } catch (Throwable t) { /* ignore platform publish failures */ }
+            } catch (Throwable t) {  }
             System.out.println("PublisherConsumer processed game released publisher=" + pubId + " game=" + gameId + " platform=" + platform + " genre=" + genre);
         } catch (Exception ex) { ex.printStackTrace(); }
     }
@@ -164,14 +162,59 @@ public class PublisherConsumer {
     public void handlePatchPublished(org.steamproject.events.PatchPublishedEvent evt) {
         try {
             String gameId = evt.getGameId().toString();
-            // patchId not present in schema; derive one
             String patchId = gameId + "-patch-" + Long.toString(evt.getTimestamp());
             String oldVersion = evt.getOldVersion() == null ? "" : evt.getOldVersion().toString();
             String newVersion = evt.getNewVersion() == null ? "" : evt.getNewVersion().toString();
             String desc = evt.getChangeLog() == null ? null : evt.getChangeLog().toString();
             Long ts = evt.getTimestamp();
+
+            org.steamproject.model.PatchType inferredType = org.steamproject.model.PatchType.FIX;
+            try {
+                java.util.List<?> changes = evt.getChanges();
+                boolean found = false;
+                if (changes != null && !changes.isEmpty()) {
+                    for (Object c : changes) {
+                        String s = c == null ? "" : c.toString().toUpperCase();
+                        if (s.contains("ADD")) { inferredType = org.steamproject.model.PatchType.ADD; found = true; break; }
+                        if (s.contains("OPTIMIZATION") || s.contains("OPTIMIZE") || s.contains("OPTIMIS")) { inferredType = org.steamproject.model.PatchType.OPTIMIZATION; found = true; }
+                        if (s.contains("FIX") || s.contains("BUG")) { inferredType = org.steamproject.model.PatchType.FIX; found = true; }
+                    }
+                }
+                if (!found) {
+                    String txt = desc == null ? "" : desc.toLowerCase();
+                    if (txt.contains("ajout") || txt.contains("add") || txt.contains("feature")) inferredType = org.steamproject.model.PatchType.ADD;
+                    else if (txt.contains("optim") || txt.contains("perf") || txt.contains("optimiz")) inferredType = org.steamproject.model.PatchType.OPTIMIZATION;
+                    else inferredType = org.steamproject.model.PatchType.FIX;
+                }
+            } catch (Exception ignore) { }
+
+            try {
+                String expected = org.steamproject.util.Semver.nextVersionForPatchType(oldVersion, inferredType == null ? org.steamproject.model.PatchType.FIX : inferredType);
+                boolean shouldAdjust = false;
+                if (newVersion == null || newVersion.isBlank()) shouldAdjust = true;
+                else {
+                    try {
+                        int cmp = org.steamproject.util.Semver.compare(newVersion, oldVersion);
+                        if (cmp <= 0) shouldAdjust = true;
+                        else if (!newVersion.equals(expected)) {
+                            // If provided version doesn't match expected increment, adjust to expected
+                            shouldAdjust = true;
+                        }
+                    } catch (Exception ex) { shouldAdjust = true; }
+                }
+                if (shouldAdjust) {
+                    System.out.println("PublisherConsumer: adjusting patch version from '" + newVersion + "' to expected '" + expected + "' for game=" + gameId);
+                    newVersion = expected;
+                }
+            } catch (Exception ex) {
+                // fallback: leave provided newVersion or increment patch
+                if (newVersion == null || newVersion.isBlank()) {
+                    newVersion = org.steamproject.util.Semver.incrementPatch(oldVersion);
+                }
+            }
+
             GameProjection.getInstance().addPatch(gameId, patchId, oldVersion, newVersion, desc, ts == null ? null : ts);
-            System.out.println("PublisherConsumer added patch " + patchId + " for game=" + gameId + " newVersion=" + newVersion);
+            System.out.println("PublisherConsumer added patch " + patchId + " for game=" + gameId + " newVersion=" + newVersion + " (type=" + inferredType + ")");
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 

@@ -27,7 +27,7 @@ import java.util.Properties;
  * Consommateur pour les événements liés aux joueurs (achats, etc.).
  *
  * Ce consommateur désérialise les événements Avro et délègue le traitement
- * des achats à la méthode {@link #handleGamePurchase(GamePurchaseEvent)}.
+ * des achats à la méthode.
  */
 public class PlayerConsumer {
     private final KafkaConsumer<String, Object> consumer;
@@ -45,7 +45,6 @@ public class PlayerConsumer {
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         this.consumer = new KafkaConsumer<>(props);
-        // support a comma-separated list of topics
         if (topic != null && topic.contains(",")) {
             java.util.List<String> topics = new java.util.ArrayList<>();
             for (String t : topic.split(",")) {
@@ -62,7 +61,7 @@ public class PlayerConsumer {
     /**
      * Démarre la boucle de consommation bloquante.
      * Affiche un message sur la console et boucle en appelant régulièrement
-     * {@code consumer.poll(...)}.
+     * 
      */
     public void start() {
         System.out.println("PlayerConsumer started, listening to " + topic);
@@ -123,7 +122,6 @@ public class PlayerConsumer {
                 return;
             }
             String playerId = evt.getPlayerId().toString();
-            // ignore purchases for players not present in projection (shouldn't happen)
             var players = PlayerProjection.getInstance().snapshot();
             if (!players.containsKey(playerId)) {
                 System.out.println("PlayerConsumer ignored purchase for unknown player=" + playerId + " game=" + evt.getGameId());
@@ -133,14 +131,13 @@ public class PlayerConsumer {
                     .format(Instant.ofEpochMilli(evt.getTimestamp()).atOffset(ZoneOffset.UTC));
             double pricePaid = evt.getPricePaid();
             GameOwnership go = new GameOwnership(evt.getGameId().toString(), evt.getGameName().toString(), purchaseDate, 0, null, pricePaid);
-            // Ignore if the player already owns this game
             var existing = PlayerLibraryProjection.getInstance().getLibrary(playerId);
             boolean alreadyOwns = false;
             for (Object o : existing) {
                 try {
                     var ex = (org.steamproject.model.GameOwnership) o;
                     if (ex != null && ex.gameId() != null && ex.gameId().equals(evt.getGameId().toString())) { alreadyOwns = true; break; }
-                } catch (Throwable t) { /* ignore malformed entries */ }
+                } catch (Throwable t) { }
             }
             if (alreadyOwns) {
                 System.out.println("PlayerConsumer ignored duplicate purchase for player=" + playerId + " game=" + evt.getGameId());
@@ -177,7 +174,6 @@ public class PlayerConsumer {
             String eventId = evt.getEventId() == null ? "" : evt.getEventId().toString();
             if (!PlayerLibraryProjection.getInstance().markEventIfNew(eventId)) return;
             String playerId = evt.getPlayerId().toString();
-            // ignore DLC purchases for unknown players
             var players = PlayerProjection.getInstance().snapshot();
             if (!players.containsKey(playerId)) {
                 System.out.println("PlayerConsumer ignored DLC purchase for unknown player=" + playerId + " dlc=" + evt.getDlcId());
@@ -197,7 +193,6 @@ public class PlayerConsumer {
             String playerId = evt.getPlayerId();
             PlayerProjection.getInstance().recordSession(playerId, evt.getSessionId(), evt.getGameId(), evt.getGameName(), evt.getSessionDuration(), evt.getSessionType().toString(), evt.getTimestamp());
             System.out.println("PlayerConsumer recorded session player=" + playerId + " game=" + evt.getGameId());
-            // Update library playtime (convert minutes -> hours)
             try { updateLibraryPlaytimeFromSession(evt); } catch (Throwable t) { /* ignore */ }
         } catch (Exception ex) { ex.printStackTrace(); }
     }
@@ -209,26 +204,24 @@ public class PlayerConsumer {
             int minutes = evt.getSessionDuration();
             String lastPlayed = java.time.Instant.ofEpochMilli(evt.getTimestamp()).toString();
             PlayerLibraryProjection.getInstance().addPlaytime(playerId, gameId, minutes, lastPlayed);
-        } catch (Throwable t) { /* best-effort */ }
+        } catch (Throwable t) {  }
     }
 
     public void handleCrashReport(CrashReportEvent evt) {
         try {
             String eventId = evt.getCrashId() == null ? "" : evt.getCrashId();
-            // deduplicate crash reports by crashId
             if (!PlayerLibraryProjection.getInstance().markEventIfNew(eventId)) {
                 System.out.println("PlayerConsumer skipped duplicate crashId=" + eventId);
                 return;
             }
             String playerId = evt.getPlayerId();
-            // Validate that the player actually owns the game being reported
             var library = PlayerLibraryProjection.getInstance().getLibrary(playerId);
             boolean owns = false;
             for (Object o : library) {
                 try {
                     var go = (org.steamproject.model.GameOwnership) o;
                     if (go != null && go.gameId() != null && go.gameId().equals(evt.getGameId())) { owns = true; break; }
-                } catch (Throwable t) { /* ignore malformed entries */ }
+                } catch (Throwable t) {}
             }
             if (!owns) {
                 System.out.println("PlayerConsumer ignored crash report for non-owned game player=" + playerId + " game=" + evt.getGameId());
@@ -236,12 +229,10 @@ public class PlayerConsumer {
             }
 
             PlayerProjection.getInstance().recordCrash(playerId, evt.getCrashId(), evt.getGameId(), evt.getGameName(), evt.getPlatform(), evt.getSeverity().toString(), evt.getErrorType(), evt.getErrorMessage() == null ? null : evt.getErrorMessage().toString(), evt.getTimestamp());
-            // increment the incident counter in the game projection
             try { org.steamproject.infra.kafka.consumer.GameProjection.getInstance().incrementIncidentCount(evt.getGameId()); } catch (Throwable t) { /* best-effort */ }
-            // also add a lightweight incident response entry to the game projection
             try {
                 org.steamproject.infra.kafka.consumer.GameProjection.getInstance().addEditorResponse(evt.getGameId(), evt.getCrashId(), evt.getErrorMessage() == null ? "" : evt.getErrorMessage().toString(), evt.getTimestamp());
-            } catch (Throwable t) { /* best-effort */ }
+            } catch (Throwable t) { }
             System.out.println("PlayerConsumer recorded crash player=" + playerId + " crash=" + evt.getCrashId());
         } catch (Exception ex) { ex.printStackTrace(); }
     }
@@ -264,7 +255,6 @@ public class PlayerConsumer {
 
     public void handleReviewVoted(ReviewVotedEvent evt) {
         try {
-            // For now, just log votes; could track per-review helpful counts later
             System.out.println("PlayerConsumer received review vote reviewId=" + evt.getReviewId() + " voter=" + evt.getVoterPlayerId() + " helpful=" + evt.getIsHelpful());
         } catch (Exception ex) { ex.printStackTrace(); }
     }

@@ -20,19 +20,15 @@ public class GameProjection {
             m.put("gameId", gameId);
             m.put("gameName", gameName);
             m.put("releaseYear", releaseYear);
-            // distributionPlatform = storefront/channel (steam, epic, xboxstore, etc.)
             m.put("distributionPlatform", distributionPlatform);
-            // console = hardware/OS/console (PC, PS5, XboxSeriesX, Switch, etc.)
+            // console = hardware/console (PC, PS5, XboxSeriesX, Switch, etc.)
             m.put("console", console);
-            // keep legacy 'platform' key for compatibility (represents console/hardware)
             m.put("platform", console);
             m.put("genre", genre);
             m.put("publisherId", publisherId);
             if (initialVersion != null) m.put("initialVersion", initialVersion);
             if (initialPrice != null) m.put("price", initialPrice);
-            // incident counter: number of crash/incident reports observed for this game
             m.putIfAbsent("incidentCount", 0);
-            // ensure lists exist
             m.putIfAbsent("versions", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
             m.putIfAbsent("patches", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
             m.putIfAbsent("dlcs", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
@@ -71,7 +67,6 @@ public class GameProjection {
             p.put("releaseTimestamp", releaseTimestamp);
             patches.add(0, p);
             m.put("patches", patches);
-            // also add to versions list
             var versions = (java.util.List<java.util.Map<String,Object>>) m.getOrDefault("versions", new java.util.concurrent.CopyOnWriteArrayList<>());
             java.util.Map<String,Object> v = new java.util.HashMap<>();
             v.put("versionNumber", newVersion);

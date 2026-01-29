@@ -91,6 +91,20 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
         return try {
             val node = mapper.readTree(body)
             if (!node.isArray) return emptyList()
+            // Tente de récupérer les achats récents pour calculer le nombre de ventes par jeu
+            val purchasesBody = safeGet("/api/purchases")
+            val purchasesCount = mutableMapOf<String, Int>()
+            if (purchasesBody != null) {
+                try {
+                    val pnode = mapper.readTree(purchasesBody)
+                    if (pnode.isArray) {
+                        for (pn in pnode) {
+                            val pgid = pn.get("gameId")?.asText() ?: continue
+                            purchasesCount[pgid] = (purchasesCount[pgid] ?: 0) + 1
+                        }
+                    }
+                } catch (_: Exception) { /* ignore purchases parse errors */ }
+            }
             val out = mutableListOf<Game>()
             for (n in node) {
                 val id = n.get("gameId")?.asText() ?: continue
@@ -102,7 +116,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                 val genreVal = n.get("genre")?.asText()?.takeIf { it.isNotBlank() }
                 val priceVal = if (n.get("price") != null && !n.get("price").isNull) n.get("price").asDouble() else null
                 val initialVer = n.get("initialVersion")?.asText()?.takeIf { it.isNotBlank() }
-                // Parse versions list from projection if available, otherwise fall back to initialVersion
+                // Analyse la liste des versions depuis la projection si disponible, sinon utilise `initialVersion`
                 val versionsList: List<GameVersion> = try {
                     val vNode = n.get("versions")
                     if (vNode != null && vNode.isArray) {
@@ -119,7 +133,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                     }
                 } catch (_: Exception) { if (initialVer != null) listOf(GameVersion(versionNumber = initialVer, description = "", releaseDate = Instant.now().toString())) else emptyList() }
 
-                // Parse patches
+                // Analyse les patchs
                 val patchesList: List<Patch> = try {
                     val pNode = n.get("patches")
                     if (pNode != null && pNode.isArray) {
@@ -136,7 +150,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                     } else emptyList()
                 } catch (_: Exception) { emptyList() }
 
-                // Parse DLCs
+                // Analyse des DLCs
                 val dlcsList: List<DLC> = try {
                     val dNode = n.get("dlcs")
                     if (dNode != null && dNode.isArray) {
@@ -146,14 +160,16 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                             val dlcName = dn.get("dlcName")?.asText() ?: ""
                             val price = if (dn.get("price") != null && !dn.get("price").isNull) dn.get("price").asDouble() else 0.0
                             val ts = dn.get("releaseTimestamp")?.asLong()?.let { it } ?: System.currentTimeMillis()
-                            ds.add(DLC(id = dlcid, parentGameId = id, name = dlcName, description = "", price = price, minGameVersion = null, releaseDate = try { Instant.ofEpochMilli(ts).toString() } catch (_: Exception) { Instant.now().toString() }, sizeInMB = 0, standalone = false))
+                            val sizeVal = if (dn.get("sizeInMB") != null && !dn.get("sizeInMB").isNull) dn.get("sizeInMB").asLong()
+                                         else if (dn.get("sizeMb") != null && !dn.get("sizeMb").isNull) dn.get("sizeMb").asLong()
+                                         else if (dn.get("size") != null && !dn.get("size").isNull) try { dn.get("size").asLong() } catch (e: Exception) { 0L } else 0L
+                            ds.add(DLC(id = dlcid, parentGameId = id, name = dlcName, description = "", price = price, minGameVersion = null, releaseDate = try { Instant.ofEpochMilli(ts).toString() } catch (_: Exception) { Instant.now().toString() }, sizeInMB = sizeVal, standalone = false))
                         }
                         ds
                     } else emptyList()
                 } catch (_: Exception) { emptyList() }
 
                     val incidentCnt = try { if (n.get("incidentCount") != null && !n.get("incidentCount").isNull) n.get("incidentCount").asInt() else null } catch (_: Exception) { null }
-                    // Build incident history from projection's incidentResponses (aggregate per day)
                     val incidentsList: List<Incident> = try {
                         val respNode = n.get("incidentResponses")
                         if (respNode != null && respNode.isArray) {
@@ -169,9 +185,12 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                         } else emptyList()
                     } catch (_: Exception) { emptyList() }
 
-                    // attach ratings and average from player reviews if available
+                    // Attache les évaluations et calcule la moyenne à partir des critiques des joueurs si disponible
                     val ratingsForThisGame: List<Rating> = fetchRatingsForGameSync(id)
                     val avg = if (ratingsForThisGame.isNotEmpty()) ratingsForThisGame.map { it.rating }.average() else null
+
+                    // Utilise `purchasesCount` (si disponible) comme `salesGlobal` (nombre d'achats)
+                    val salesCountAsDouble: Double? = purchasesCount[id]?.toDouble()
 
                     out.add(Game(
                     id = id,
@@ -190,7 +209,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                     salesEU = null,
                     salesJP = null,
                     salesOther = null,
-                    salesGlobal = null,
+                    salesGlobal = salesCountAsDouble,
                     description = null,
                     versions = versionsList,
                     incidents = incidentsList,
@@ -222,21 +241,21 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
 
     override suspend fun getPublishers(): List<Publisher> = withContext(Dispatchers.IO) {
         try {
-            // Fetch publisher metadata (id, name, ...) from projection-backed REST
+            // Récupère les métadonnées des éditeurs (id, nom, ...) depuis le REST de la projection
             val metaBody = safeGet("/api/publishers") ?: return@withContext emptyList()
             val publishers: List<Publisher> = mapper.readValue(metaBody, object : TypeReference<List<Publisher>>() {})
 
-            // Fetch counts separately and merge; if counts endpoint unavailable, default to 0
+            // Récupère séparément les compteurs et les fusionne ; si l'endpoint des compteurs est indisponible, utilise 0 par défaut
             val countsBody = safeGet("/api/publishers-list")
             val counts: Map<String, Int> = if (countsBody != null) mapper.readValue(countsBody, object : TypeReference<Map<String, Int>>() {}) else emptyMap()
 
-            // Fetch catalog & purchases to compute incidents sum, patch counts and active games
+            // Récupère le catalogue et les achats pour calculer la somme des incidents, le nombre de patchs et les jeux actifs
             val catalogBody = safeGet("/api/catalog")
             val catalogNode: JsonNode? = catalogBody?.let { mapper.readTree(it) }
             val purchasesBody = safeGet("/api/purchases")
             val purchasesNode: JsonNode? = purchasesBody?.let { mapper.readTree(it) }
 
-            // Build helper maps per publisher
+            // Construit des maps d'aide par éditeur
             val incidentsByPub = mutableMapOf<String, Int>()
             val patchesByPub = mutableMapOf<String, Int>()
             val publishedGamesByPub = mutableMapOf<String, MutableSet<String>>()
@@ -261,7 +280,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                 }
             } catch (_: Exception) { /* ignore */ }
 
-            // Determine which games were actually purchased
+            // Détermine quels jeux ont réellement été achetés
             val purchasedGameIds = mutableSetOf<String>()
             try {
                 if (purchasesNode != null && purchasesNode.isArray) {
@@ -271,7 +290,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                 }
             } catch (_: Exception) { /* ignore */ }
 
-            // Map publishers and inject computed stats (publisher averageRating left empty for now)
+            // Mappe les éditeurs et injecte les statistiques calculées (averageRating de l'éditeur laissé vide pour l'instant)
             publishers.map { p ->
                 val gpSet = publishedGamesByPub[p.id] ?: emptySet()
                 val active = gpSet.count { purchasedGameIds.contains(it) }
@@ -318,7 +337,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                     val firstName = n.get("firstName")?.asText()?.takeIf { it.isNotBlank() }
                     val lastName = n.get("lastName")?.asText()?.takeIf { it.isNotBlank() }
                     val dateOfBirth = n.get("dateOfBirth")?.asText()?.takeIf { it.isNotBlank() }
-                    // Fetch reviews for this player to populate evaluation count and last evaluation date
+                    // Récupère les avis de ce joueur pour remplir le nombre d'évaluations et la date de la dernière évaluation
                     var evalCount: Int? = null
                     var lastEvalDate: String? = null
                     try {
@@ -337,7 +356,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                         }
                     } catch (_: Exception) { /* ignore */ }
 
-                    // compute total playtime (sum of library playtimes in hours)
+                    // Calcule le temps de jeu total (somme des playtimes de la bibliothèque, en heures)
                     val totalPlay = if (library.isEmpty()) null else library.sumOf { it.playtime }
                     out.add(Player(id = id, username = username, email = email, registrationDate = reg, firstName = firstName, lastName = lastName, dateOfBirth = dateOfBirth, gdprConsent = gdprConsent, gdprConsentDate = gdprConsentDate, library = library, totalPlaytime = totalPlay, lastEvaluationDate = lastEvalDate, evaluationsCount = evalCount))
                 }
@@ -426,6 +445,21 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
             val body = safeGet("/api/purchases") ?: return@withContext emptyList()
             val node = mapper.readTree(body)
             if (!node.isArray) return@withContext emptyList()
+            // Construit une map playerId -> username pour enrichir les achats
+            val playersBody = safeGet("/api/players")
+            val playerNames = mutableMapOf<String, String>()
+            if (playersBody != null) {
+                try {
+                    val pnodes = mapper.readTree(playersBody)
+                    if (pnodes.isArray) {
+                        for (pn in pnodes) {
+                            val pid = pn.get("id")?.asText() ?: continue
+                            val uname = pn.get("username")?.asText() ?: ""
+                            playerNames[pid] = uname
+                        }
+                    }
+                } catch (_: Exception) { /* ignore player fetch errors */ }
+            }
             val out = mutableListOf<Purchase>()
             for (n in node) {
                 val gid = n.get("gameId")?.asText() ?: continue
@@ -434,7 +468,8 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                 val price = if (n.get("pricePaid") != null && !n.get("pricePaid").isNull) n.get("pricePaid").asDouble() else 0.0
                 val date = n.get("purchaseDate")?.asText() ?: Instant.now().toString()
                 val ts = try { Instant.parse(date).toEpochMilli() } catch (_: Exception) { System.currentTimeMillis() }
-                out.add(Purchase(purchaseId = "$pid-$gid", gameId = gid, gameName = gname, playerId = pid, playerUsername = "", pricePaid = price, platform = "", timestamp = ts, isDlc = false, dlcId = null))
+                val uname = playerNames[pid] ?: ""
+                out.add(Purchase(purchaseId = "$pid-$gid", gameId = gid, gameName = gname, playerId = pid, playerUsername = uname, pricePaid = price, platform = "", timestamp = ts, isDlc = false, dlcId = null))
             }
             out.sortedByDescending { it.timestamp }.take(limit)
         } catch (_: Exception) { emptyList() }
@@ -458,7 +493,7 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
     }
 
     override suspend fun canPurchaseDLC(playerId: String, dlcId: String): Boolean = withContext(Dispatchers.IO) {
-        // Simplified: DLC is purchasable if it exists
+        // Simplifié : le DLC est achetable s'il existe
         getDLC(dlcId) != null
     }
 
@@ -478,7 +513,10 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                             val dlcName = dn.get("dlcName")?.asText() ?: ""
                             val price = if (dn.get("price") != null && !dn.get("price").isNull) dn.get("price").asDouble() else 0.0
                             val ts = dn.get("releaseTimestamp")?.asLong()?.let { it } ?: System.currentTimeMillis()
-                            out.add(DLC(id = dlcid, parentGameId = gid, name = dlcName, description = "", price = price, minGameVersion = null, releaseDate = try { Instant.ofEpochMilli(ts).toString() } catch (_: Exception) { Instant.now().toString() }, sizeInMB = 0, standalone = false))
+                            val sizeVal = if (dn.get("sizeInMB") != null && !dn.get("sizeInMB").isNull) dn.get("sizeInMB").asLong()
+                                         else if (dn.get("sizeMb") != null && !dn.get("sizeMb").isNull) dn.get("sizeMb").asLong()
+                                         else if (dn.get("size") != null && !dn.get("size").isNull) try { dn.get("size").asLong() } catch (e: Exception) { 0L } else 0L
+                            out.add(DLC(id = dlcid, parentGameId = gid, name = dlcName, description = "", price = price, minGameVersion = null, releaseDate = try { Instant.ofEpochMilli(ts).toString() } catch (_: Exception) { Instant.now().toString() }, sizeInMB = sizeVal, standalone = false))
                         }
                     }
                 }

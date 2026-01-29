@@ -53,7 +53,6 @@ public class PlayerProducerApp {
         String sr = System.getProperty("schema.registry", "http://localhost:8081");
 
         if ("create".equals(mode)) {
-            // create player
             String playerId = System.getProperty("test.player.id", null);
             String username = System.getProperty("test.player.username", null);
             String email = System.getProperty("test.player.email", null);
@@ -99,7 +98,6 @@ public class PlayerProducerApp {
             }
 
         } else if ("purchase".equals(mode)) {
-            // purchase: choose a random existing player and a random published game via REST projections
             String restBase = System.getProperty("rest.base", "http://localhost:8080");
             ObjectMapper mapper = new ObjectMapper();
             HttpClient client = HttpClient.newHttpClient();
@@ -146,7 +144,6 @@ public class PlayerProducerApp {
             if (playerId == null) playerId = System.getProperty("test.player.id", UUID.randomUUID().toString());
             if (gameId == null) gameId = System.getProperty("test.game.id", UUID.randomUUID().toString());
 
-            // Ensure the chosen player does not already own the chosen game.
             try {
                 if (playerId != null && gameId != null) {
                     HttpRequest libReq = HttpRequest.newBuilder().uri(URI.create(restBase + "/api/players/" + playerId + "/library")).GET().build();
@@ -164,7 +161,6 @@ public class PlayerProducerApp {
                     }
 
                     if (owned) {
-                        // Try to find another player who does not own this game (best-effort)
                         try {
                             HttpRequest allReq = HttpRequest.newBuilder().uri(URI.create(restBase + "/api/players")).GET().build();
                             HttpResponse<String> allResp = client.send(allReq, HttpResponse.BodyHandlers.ofString());

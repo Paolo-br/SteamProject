@@ -101,17 +101,31 @@ class RatingsViewModel : BaseViewModel() {
             ratings.count { it.rating.rating == stars }
         }
 
-        // Évaluations de ce mois (simplifié - compte les 30 derniers jours)
-        val thisMonth = ratings.count {
-            // Simplified - in real app would parse dates properly
-            true // Pour simplifier, on compte toutes les évaluations récentes
+        // Évaluations de ce mois : compter les évaluations dont la date
+        // correspond au mois et à l'année courants.
+        val now = java.time.ZonedDateTime.now()
+        val thisMonthCount = ratings.count { rwg ->
+            try {
+                val inst = java.time.Instant.parse(rwg.rating.date)
+                val z = inst.atZone(java.time.ZoneId.systemDefault())
+                z.month == now.month && z.year == now.year
+            } catch (_: Exception) {
+                // Si la date n'est pas au format ISO, tenter un parse plus permissif
+                try {
+                    val fmt = java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME
+                    val z = java.time.ZonedDateTime.parse(rwg.rating.date, fmt)
+                    z.month == now.month && z.year == now.year
+                } catch (_: Exception) {
+                    false
+                }
+            }
         }
 
         return RatingStatistics(
             totalRatings = total,
             averageRating = average,
             distribution = distribution,
-            ratingsThisMonth = total / 3 // Estimation simplifiée
+            ratingsThisMonth = thisMonthCount
         )
     }
 
