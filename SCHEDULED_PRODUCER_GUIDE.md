@@ -398,6 +398,36 @@ public class FakeDataGenerator {
     public GameSessionEvent generateSession(GameInfo game, PlayerInfo player) {
         return GameSessionEvent.newBuilder()
             .setSessionId(UUID.randomUUID().toString())
+     }
+
+## Tâches assignées — Scheduler & Agrégations (à suivre)
+
+But : implémenter le scheduler obligatoire et les jobs périodiques d'agrégation (stats éditeurs, snapshots, recalculs).
+
+Consignes générales :
+- Ne modifiez pas les topologies Kafka Streams (tâche Streaming & Projections).
+- Ne touchez pas à l'UI (`src/main/kotlin/ui/**`).
+- Lisez : `README.md`, `SCHEDULED_PRODUCER_GUIDE.md` (ce fichier), `KAFKA_STREAMS_GUIDE.md`.
+
+Checklist détaillée (ordre recommandé) :
+1. Définir jobs requis et intervalles (documenter dans le guide) :
+    - Job A (p.ex. toutes les 5 min) : agréger ventes par éditeur, calculer `activeGames`.
+    - Job B (quotidien) : snapshot incidents/patches par jeu.
+    - Job C : purge/compaction de données temporaires.
+2. Choisir implémentation : `ScheduledExecutorService` recommandé (léger), ou `Quartz` si besoin.
+3. Implémenter le service scheduler dans `src/main/java/org/steamproject/scheduler/` :
+    - Lecture via REST (`/api/catalog`, `/api/purchases`) ou interactive queries vers les state stores.
+    - Écriture des résultats dans stockage léger (JSON sous `data/` ou SQLite). Documenter le choix.
+4. Exposer endpoints d'administration :
+    - `POST /internal/run-agg` — forcer un run manuel.
+    - `GET /internal/scheduler/status` — état et dernier run timestamp.
+5. Tests :
+    - Unitaires pour la logique d'agrégation.
+    - Test d'acceptation local : produire événements, lancer scheduler, vérifier snapshot.
+6. Documentation : mettre à jour `SCHEDULED_PRODUCER_GUIDE.md` avec configuration (cron/interval), commandes de démarrage et vérification.
+
+Livrable attendu : scheduler intégré, endpoints admin, snapshots/agrégats consultables et testés localement.
+
             .setGameId(game.gameId())
             .setGameName(game.gameName())
             .setPlayerId(player.playerId())

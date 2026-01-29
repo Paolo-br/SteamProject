@@ -343,6 +343,35 @@ docker-compose up mon-streams-service
 
 ## 6. Exemples concrets du projet
 
+## Tâches assignées — Streaming & Projections (à suivre)
+
+But : fournir une topologie Kafka Streams stable, stores matérialisés et API REST de projection.
+
+Consignes générales :
+- Ne modifiez pas la logique métier (fichiers dans `src/main/java/org/steamproject/service/*`).
+- Ne touchez pas à l'UI (`src/main/kotlin/ui/**`).
+- Lisez : `README.md`, `EVENTS_GUIDE.md`, `KAFKA_STREAMS_GUIDE.md` (ce fichier).
+
+Checklist détaillée (ordre recommandé) :
+1. Valider les schémas Avro dans `src/main/avro/*.avsc` et la configuration du Schema Registry.
+2. Stabiliser `UserLibraryStreams` :
+    - Assurer la configuration du Serde Avro (`specific.avro.reader=true`) et l'URL du Schema Registry.
+    - Gérer les erreurs de désérialisation (log, skip, dead-letter si besoin).
+    - Confirmer le nom du store matérialisé `user-library-store` et sa API d'accès.
+3. Ajouter/valider d'autres stores matérialisés nécessaires (catalogue, purchases) avec noms contractuels.
+4. Exposer endpoints REST de projection stables :
+    - `GET /api/catalog` — retourne le catalogue projeté.
+    - `GET /api/players` — liste des joueurs projetés.
+    - `GET /api/players/{id}/library` — lire `user-library-store`.
+    - `GET /api/purchases` — achats récents/projetés.
+    - `GET /health` — healthcheck de la projection.
+5. Tests d'intégration locaux :
+    - Démarrer l'infra (`docker-compose up -d`) puis démarrer la topologie.
+    - Produire événements tests (`runPlayerProducer`, `runPublishGame`) et vérifier les endpoints via `curl`.
+6. Documentation : mettre à jour ce guide (`KAFKA_STREAMS_GUIDE.md`) avec commandes, noms de stores et exemples `curl`.
+
+Livrable attendu : topologie démarrable via Gradle, stores matérialisés accessibles, endpoints REST documentés.
+
 ### Exemple 1 : Bibliothèque utilisateur (UserLibraryStreams)
 
 **Objectif** : Maintenir la liste des jeux possédés par chaque joueur.
