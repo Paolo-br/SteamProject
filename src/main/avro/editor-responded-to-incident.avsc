@@ -1,0 +1,14 @@
+{
+  "type": "record",
+  "name": "EditorRespondedToIncidentEvent",
+  "namespace": "org.steamproject.events",
+  "doc": "Editor response message to a reported incident",
+  "fields": [
+    {"name": "incidentId", "type": "string"},
+    {"name": "gameId", "type": "string"},
+    {"name": "publisherId", "type": "string"},
+    {"name": "platform", "type": "string"},
+    {"name": "responseMessage", "type": "string"},
+    {"name": "responseTimestamp", "type": "long", "logicalType": "timestamp-millis"}
+  ]
+}

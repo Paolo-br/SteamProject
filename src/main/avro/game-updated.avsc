@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "GameUpdatedEvent",
+  "namespace": "org.steamproject.events",
+  "doc": "Emitted when metadata for a game is updated",
+  "fields": [
+    {"name": "gameId", "type": "string"},
+    {"name": "publisherId", "type": "string"},
+    {"name": "platform", "type": "string"},
+    {"name": "updatedFields", "type": {"type":"map", "values": ["null","string"]}},
+    {"name": "updateTimestamp", "type": "long", "logicalType": "timestamp-millis"}
+  ]
+}

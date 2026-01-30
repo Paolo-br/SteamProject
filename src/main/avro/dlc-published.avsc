@@ -1,0 +1,16 @@
+{
+  "type": "record",
+  "name": "DlcPublishedEvent",
+  "namespace": "org.steamproject.events",
+  "doc": "Published when an editor releases a DLC for a game",
+  "fields": [
+    {"name": "dlcId", "type": "string"},
+    {"name": "gameId", "type": "string"},
+    {"name": "publisherId", "type": "string"},
+    {"name": "platform", "type": "string"},
+    {"name": "dlcName", "type": "string"},
+    {"name": "price", "type": "double"},
+    {"name": "sizeInMB", "type": "long", "default": 0, "doc": "Size of the DLC in megabytes"},
+    {"name": "releaseTimestamp", "type": "long", "logicalType": "timestamp-millis"}
+  ]
+}

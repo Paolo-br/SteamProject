@@ -1,0 +1,17 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "ReviewPublishedEvent",
+  "doc": "Événement émis lorsqu'un joueur publie un avis",
+  "fields": [
+    { "name": "reviewId", "type": "string" },
+    { "name": "gameId", "type": "string" },
+    { "name": "playerId", "type": "string" },
+    { "name": "playerUsername", "type": "string" },
+    { "name": "rating", "type": "int" },
+    { "name": "title", "type": ["null","string"], "default": null },
+    { "name": "text", "type": ["null","string"], "default": null },
+    { "name": "isSpoiler", "type": "boolean", "default": false },
+    { "name": "timestamp", "type": "long", "default": 0 }
+  ]
+}

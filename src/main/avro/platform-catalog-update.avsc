@@ -1,0 +1,17 @@
+{
+  "type": "record",
+  "namespace": "org.steamproject.events",
+  "name": "PlatformCatalogUpdateEvent",
+  "doc": "Événement émis lors d'une modification du catalogue d'une plateforme (ajout/suppression)",
+  "fields": [
+    { "name": "platformId", "type": "string", "doc": "Identifiant de la plateforme" },
+    { "name": "gameId", "type": "string", "doc": "Identifiant du jeu" },
+    { "name": "gameName", "type": ["null", "string"], "default": null },
+    {
+      "name": "action",
+      "type": { "type": "enum", "name": "CatalogAction", "symbols": ["ADD", "REMOVE"] },
+      "doc": "Action sur le catalogue"
+    },
+    { "name": "timestamp", "type": "long", "default": 0 }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "GameVersionDeprecatedEvent",
+  "namespace": "org.steamproject.events",
+  "doc": "Emitted when a specific game version is deprecated",
+  "fields": [
+    {"name": "gameId", "type": "string"},
+    {"name": "publisherId", "type": "string"},
+    {"name": "platform", "type": "string"},
+    {"name": "deprecatedVersion", "type": "string"},
+    {"name": "deprecatedAt", "type": "long", "logicalType": "timestamp-millis"}
+  ]
+}
