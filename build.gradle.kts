@@ -269,3 +269,46 @@ tasks.register<JavaExec>("runGamePatchesStreams") {
     mainClass.set("org.steamproject.infra.kafka.streams.GamePatchesStreams")
     dependsOn("generateAvroJava", "classes")
 }
+
+tasks.register<JavaExec>("runGameToPlatformCatalogStreams") {
+    group = "application"
+    description = "Run GameToPlatformCatalogStreams - Route automatiquement les jeux vers les plateformes de distribution selon leur console"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.streams.GameToPlatformCatalogStreams")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runAutoPatchGenerator") {
+    group = "application"
+    description = "Run AutoPatchGeneratorStreams - Génère automatiquement des patchs selon les règles métier (3 incidents→FIX, 5 achats→OPTIMIZATION, 100h→ADD)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.streams.AutoPatchGeneratorStreams")
+    dependsOn("generateAvroJava", "classes")
+}
+
+// ========== EVENT ORCHESTRATOR / SCHEDULER ==========
+
+tasks.register<JavaExec>("runEventOrchestrator") {
+    group = "application"
+    description = "Run the scheduled event orchestrator to generate Kafka events periodically"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.scheduler.ScheduledEventOrchestrator")
+    dependsOn("generateAvroJava", "classes")
+    
+    // Permet de passer un fichier de configuration optionnel via -Pconfig=path/to/config.properties
+    if (project.hasProperty("config")) {
+        args(project.property("config").toString())
+    }
+}
+
+tasks.register<JavaExec>("runScheduler") {
+    group = "application"
+    description = "Alias for runEventOrchestrator"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.scheduler.ScheduledEventOrchestrator")
+    dependsOn("generateAvroJava", "classes")
+    
+    if (project.hasProperty("config")) {
+        args(project.property("config").toString())
+    }
+}

@@ -128,6 +128,10 @@ public class PublisherProducer {
     }
 
     public Future<RecordMetadata> publishPatch(String gameId, String gameName, String platform, String oldVersion, String newVersion, String changeLog) {
+        return publishPatch(gameId, gameName, platform, oldVersion, newVersion, changeLog, 0L);
+    }
+
+    public Future<RecordMetadata> publishPatch(String gameId, String gameName, String platform, String oldVersion, String newVersion, String changeLog, long sizeInMB) {
         org.steamproject.events.PatchPublishedEvent evt = org.steamproject.events.PatchPublishedEvent.newBuilder()
                 .setGameId(gameId)
                 .setGameName(gameName == null ? "" : gameName)
@@ -136,12 +140,17 @@ public class PublisherProducer {
                 .setNewVersion(newVersion == null ? "" : newVersion)
                 .setChangeLog(changeLog == null ? "" : changeLog)
                 .setChanges(java.util.Collections.emptyList())
+                .setSizeInMB(sizeInMB)
                 .setTimestamp(Instant.now().toEpochMilli())
                 .build();
         return sendToTopic(TOPIC_PATCH_PUBLISHED, gameId, evt);
     }
 
     public Future<RecordMetadata> publishDlc(String dlcId, String gameId, String publisherId, String platform, String dlcName, double price) {
+        return publishDlc(dlcId, gameId, publisherId, platform, dlcName, price, 0L);
+    }
+
+    public Future<RecordMetadata> publishDlc(String dlcId, String gameId, String publisherId, String platform, String dlcName, double price, long sizeInMB) {
         org.steamproject.events.DlcPublishedEvent evt = org.steamproject.events.DlcPublishedEvent.newBuilder()
                 .setDlcId(dlcId == null ? java.util.UUID.randomUUID().toString() : dlcId)
                 .setGameId(gameId)
@@ -149,6 +158,7 @@ public class PublisherProducer {
                 .setPlatform(platform == null ? "" : platform)
                 .setDlcName(dlcName == null ? "" : dlcName)
                 .setPrice(price)
+                .setSizeInMB(sizeInMB)
                 .setReleaseTimestamp(Instant.now().toEpochMilli())
                 .build();
         return sendToTopic(TOPIC_DLC_PUBLISHED, gameId, evt);

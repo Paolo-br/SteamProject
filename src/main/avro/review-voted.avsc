@@ -2,11 +2,13 @@
   "type": "record",
   "namespace": "org.steamproject.events",
   "name": "ReviewVotedEvent",
-  "doc": "Événement émis lorsqu'un joueur vote la pertinence d'un avis",
+  "doc": "Événement émis lorsqu'un joueur vote la pertinence d'un avis. Supporte le re-vote via eventId unique.",
   "fields": [
-    { "name": "reviewId", "type": "string" },
-    { "name": "voterPlayerId", "type": "string" },
-    { "name": "isHelpful", "type": "boolean" },
+    { "name": "eventId", "type": "string", "doc": "Identifiant unique de l'événement pour l'idempotence" },
+    { "name": "reviewId", "type": "string", "doc": "Identifiant de l'évaluation votée" },
+    { "name": "voterPlayerId", "type": "string", "doc": "Identifiant du joueur qui vote" },
+    { "name": "isHelpful", "type": "boolean", "doc": "true = utile, false = pas utile" },
+    { "name": "voteAction", "type": { "type": "enum", "name": "VoteAction", "symbols": ["CAST", "CHANGE", "REMOVE"] }, "default": "CAST", "doc": "Action du vote: CAST (nouveau), CHANGE (changement), REMOVE (suppression)" },
     { "name": "timestamp", "type": "long", "default": 0 }
   ]
 }

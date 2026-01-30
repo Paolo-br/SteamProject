@@ -69,7 +69,13 @@ fun EditorTable(
                             Text(text = pub.gamesPublished.toString(), modifier = Modifier.weight(0.15f))
                             Text(text = pub.totalIncidents?.toString() ?: "-", modifier = Modifier.weight(0.15f))
                             Text(text = pub.patchCount?.toString() ?: "-", modifier = Modifier.weight(0.15f))
-                            Text(text = pub.averageRating?.toString() ?: "-", modifier = Modifier.weight(0.15f))
+                            // Affiche le score qualité calculé par Kafka Streams
+                            val qualityDisplay = pub.qualityScore?.let { 
+                                String.format("%.1f", it) 
+                            } ?: pub.averageRating?.let { 
+                                String.format("%.1f", it) 
+                            } ?: "-"
+                            Text(text = qualityDisplay, modifier = Modifier.weight(0.15f))
                             val react = pub.reactivity?.let { "${it}%" } ?: "-"
                             Text(text = react, modifier = Modifier.weight(0.15f))
                         }

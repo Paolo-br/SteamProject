@@ -67,11 +67,11 @@ public class PublisherGamesStreams {
 
         // Topics publisher: game-released, game-published, game-updated, patch-published, dlc-published, etc.
         String[] publisherTopics = {
-            "game-released.events",
-            "game-published.events",
-            "game-updated.events",
-            "patch-published.events",
-            "dlc-published.events"
+            "game-released-events",
+            "game-published-events",
+            "game-updated-events",
+            "patch-published-events",
+            "dlc-published-events"
         };
 
         // Merge tous les streams de publishers

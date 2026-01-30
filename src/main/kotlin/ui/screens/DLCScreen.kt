@@ -19,6 +19,7 @@ import org.example.model.Game
 import org.example.services.ServiceLocator
 import org.example.state.NavigationState
 import org.example.ui.navigation.Screen
+import org.example.utils.SizeFormatter
 
 /**
  * Écran de gestion des DLC.
@@ -344,7 +345,7 @@ private fun DLCCard(
                 
                 // Taille
                 Text(
-                    text = "${dlc.sizeInMB} MB",
+                    text = SizeFormatter.formatSize(dlc.sizeInMB),
                     style = MaterialTheme.typography.caption,
                     color = Color.Gray
                 )

@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.example.model.Patch
+import org.example.utils.SizeFormatter
 @Composable
 fun PatchTable(
     modifier: Modifier = Modifier,
@@ -48,7 +49,7 @@ fun PatchTable(
                         Text(text = p.newVersion, modifier = Modifier.weight(0.10f), style = MaterialTheme.typography.body2)
                         Text(text = p.type.name, modifier = Modifier.weight(0.10f), style = MaterialTheme.typography.body2)
                         Text(text = p.platform, modifier = Modifier.weight(0.12f), style = MaterialTheme.typography.body2)
-                        Text(text = "${p.sizeInMB} MB", modifier = Modifier.weight(0.10f), style = MaterialTheme.typography.body2)
+                        Text(text = SizeFormatter.formatSize(p.sizeInMB), modifier = Modifier.weight(0.10f), style = MaterialTheme.typography.body2)
                         Text(text = p.releaseDate, modifier = Modifier.weight(0.12f), style = MaterialTheme.typography.body2)
                     }
                     Divider(color = Color(0xFFF0F0F0), thickness = 1.dp)

@@ -112,9 +112,10 @@ public class GameProjection {
      * @param oldVersion Numéro de version avant le patch
      * @param newVersion Numéro de version après le patch
      * @param description Description des changements
+     * @param sizeInMB Taille du patch en mégaoctets
      * @param releaseTimestamp Timestamp de sortie du patch
      */
-    public void addPatch(String gameId, String patchId, String oldVersion, String newVersion, String description, Long releaseTimestamp) {
+    public void addPatch(String gameId, String patchId, String oldVersion, String newVersion, String description, Long sizeInMB, Long releaseTimestamp, String patchType) {
         store.computeIfPresent(gameId, (k, old) -> {
             java.util.Map<String,Object> m = new java.util.HashMap<>(old);
             var patches = (java.util.List<java.util.Map<String,Object>>) m.getOrDefault("patches", new java.util.concurrent.CopyOnWriteArrayList<>());
@@ -123,7 +124,9 @@ public class GameProjection {
             p.put("oldVersion", oldVersion);
             p.put("newVersion", newVersion);
             p.put("description", description);
+            p.put("sizeInMB", sizeInMB);
             p.put("releaseTimestamp", releaseTimestamp);
+            p.put("patchType", patchType != null ? patchType : "FIX");
             patches.add(0, p);
             m.put("patches", patches);
             var versions = (java.util.List<java.util.Map<String,Object>>) m.getOrDefault("versions", new java.util.concurrent.CopyOnWriteArrayList<>());
@@ -146,9 +149,10 @@ public class GameProjection {
      * @param dlcId Identifiant unique du DLC
      * @param dlcName Nom du DLC
      * @param price Prix du DLC
+     * @param sizeInMB Taille du DLC en mégaoctets
      * @param releaseTimestamp Timestamp de sortie du DLC
      */
-    public void addDlc(String gameId, String dlcId, String dlcName, Double price, Long releaseTimestamp) {
+    public void addDlc(String gameId, String dlcId, String dlcName, Double price, Long sizeInMB, Long releaseTimestamp) {
         store.computeIfPresent(gameId, (k, old) -> {
             java.util.Map<String,Object> m = new java.util.HashMap<>(old);
             var dlcs = (java.util.List<java.util.Map<String,Object>>) m.getOrDefault("dlcs", new java.util.concurrent.CopyOnWriteArrayList<>());
@@ -156,6 +160,7 @@ public class GameProjection {
             d.put("dlcId", dlcId);
             d.put("dlcName", dlcName);
             d.put("price", price);
+            d.put("sizeInMB", sizeInMB);
             d.put("releaseTimestamp", releaseTimestamp);
             dlcs.add(0, d);
             m.put("dlcs", dlcs);

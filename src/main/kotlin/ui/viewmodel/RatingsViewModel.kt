@@ -7,13 +7,18 @@ import kotlinx.coroutines.launch
 import org.example.model.Game
 import org.example.model.Rating
 import org.example.services.ServiceLocator
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
 
 /**
  * ViewModel pour l'écran Évaluations.
  *
  * Responsabilités :
  * - Charger toutes les évaluations de tous les jeux
- * - Permettre de poster une nouvelle évaluation
+ * - Permettre de voter sur l'utilité des évaluations
  * - Gérer l'état de chargement et d'erreur
  * - Calculer les statistiques d'évaluations
  */
@@ -24,6 +29,19 @@ class RatingsViewModel : BaseViewModel() {
 
     private val _selectedGameId: MutableState<String?> = mutableStateOf(null)
     val selectedGameId: State<String?> = _selectedGameId
+    
+    // État de vote en cours (pour afficher le loading sur le bouton)
+    private val _votingInProgress: MutableState<Set<String>> = mutableStateOf(emptySet())
+    val votingInProgress: State<Set<String>> = _votingInProgress
+    
+    // ID du joueur courant (normalement provient de l'authentification)
+    private val _currentPlayerId: MutableState<String?> = mutableStateOf(null)
+    val currentPlayerId: State<String?> = _currentPlayerId
+    
+    private val httpClient: HttpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(5))
+        .build()
+    private val restBaseUrl = "http://localhost:8080"
 
     // Propriétés dérivées
     val isLoading: Boolean
@@ -133,6 +151,86 @@ class RatingsViewModel : BaseViewModel() {
      * Soumet une nouvelle évaluation.
      */
     // Rating submission removed: ratings are created only via events.
+
+    /**
+     * Définit l'ID du joueur courant pour permettre les votes.
+     */
+    fun setCurrentPlayer(playerId: String?) {
+        _currentPlayerId.value = playerId
+    }
+
+    /**
+     * Vote "utile" ou "pas utile" sur une évaluation.
+     * 
+     * @param reviewId Identifiant de l'évaluation
+     * @param isHelpful true pour "utile", false pour "pas utile"
+     */
+    fun voteOnReview(reviewId: String, isHelpful: Boolean) {
+        val playerId = _currentPlayerId.value
+        if (playerId.isNullOrEmpty()) {
+            println("Cannot vote: no current player set")
+            return
+        }
+        
+        viewModelScope.launch {
+            try {
+                // Marque le vote comme en cours
+                _votingInProgress.value = _votingInProgress.value + reviewId
+                
+                val url = "$restBaseUrl/api/reviews/$reviewId/vote?playerId=$playerId&isHelpful=$isHelpful"
+                val request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .build()
+                
+                val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                
+                if (response.statusCode() in 200..299) {
+                    println("Vote submitted successfully: reviewId=$reviewId, isHelpful=$isHelpful")
+                    // Rafraîchit les données après un court délai pour laisser Kafka Streams traiter
+                    kotlinx.coroutines.delay(500)
+                    loadRatings()
+                } else {
+                    println("Vote failed with status ${response.statusCode()}: ${response.body()}")
+                }
+            } catch (e: Exception) {
+                println("Error voting on review: ${e.message}")
+            } finally {
+                _votingInProgress.value = _votingInProgress.value - reviewId
+            }
+        }
+    }
+
+    /**
+     * Supprime le vote d'un joueur sur une évaluation.
+     */
+    fun removeVote(reviewId: String) {
+        val playerId = _currentPlayerId.value
+        if (playerId.isNullOrEmpty()) return
+        
+        viewModelScope.launch {
+            try {
+                _votingInProgress.value = _votingInProgress.value + reviewId
+                
+                val url = "$restBaseUrl/api/reviews/$reviewId/vote?playerId=$playerId"
+                val request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .DELETE()
+                    .build()
+                
+                val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+                
+                if (response.statusCode() in 200..299) {
+                    kotlinx.coroutines.delay(500)
+                    loadRatings()
+                }
+            } catch (e: Exception) {
+                println("Error removing vote: ${e.message}")
+            } finally {
+                _votingInProgress.value = _votingInProgress.value - reviewId
+            }
+        }
+    }
 
     /**
      * Sélectionne un jeu pour afficher ses évaluations.

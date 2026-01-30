@@ -14,10 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.example.model.Publisher
 
 /**
  * Indicateurs de performance (KPI) des editeurs.
- * Affiche des cartes vides pretes pour les metriques backend.
+ * Affiche les métriques de qualité, réactivité et nombre de jeux publiés.
  */
 @Composable
 fun PerformanceIndicators(
@@ -40,34 +41,45 @@ fun PerformanceIndicators(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Fetch publishers to compute top metrics
-            val publishersState by produceState(initialValue = emptyList<org.example.model.Publisher>()) {
+            val publishersState by produceState(initialValue = emptyList<Publisher>()) {
                 value = try {
                     org.example.services.ServiceLocator.dataService.getPublishers()
                 } catch (_: Exception) { emptyList() }
             }
 
+            // Meilleur score qualité (basé sur averageRating qui contient le qualityScore)
+            val topByQuality = publishersState
+                .filter { it.averageRating != null && it.averageRating!! > 0 }
+                .maxByOrNull { it.averageRating ?: 0.0 }
+
+            // Meilleure réactivité
+            val topByReactivity = publishersState
+                .filter { it.reactivity != null && it.reactivity!! > 0 }
+                .maxByOrNull { it.reactivity ?: 0 }
+
+            // Plus de jeux publiés
             val topByGames = publishersState.maxByOrNull { it.gamesPublished }
 
             PerformanceCard(
-                title = "Meilleur score qualite",
+                title = "Meilleur score qualité",
                 backgroundColor = Color(0xFFE8F5E9),
                 textColor = Color(0xFF2E7D32),
-                mainText = "-",
-                subText = "-",
+                mainText = topByQuality?.name ?: "-",
+                subText = topByQuality?.averageRating?.let { String.format("%.1f / 100", it) } ?: "-",
                 modifier = Modifier.weight(1f)
             )
 
             PerformanceCard(
-                title = "Meilleure reactivite",
+                title = "Meilleure réactivité",
                 backgroundColor = Color(0xFFE3F2FD),
                 textColor = Color(0xFF1565C0),
-                mainText = "-",
-                subText = "-",
+                mainText = topByReactivity?.name ?: "-",
+                subText = topByReactivity?.reactivity?.let { "$it%" } ?: "-",
                 modifier = Modifier.weight(1f)
             )
 
             PerformanceCard(
-                title = "Plus de jeux publies",
+                title = "Plus de jeux publiés",
                 backgroundColor = Color(0xFFF3E5F5),
                 textColor = Color(0xFF6A1B9A),
                 mainText = topByGames?.name ?: "-",

@@ -99,6 +99,7 @@ public class GamePatchesStreams {
                     patchJson.put("oldVersion", evt.getOldVersion() != null ? evt.getOldVersion().toString() : "");
                     patchJson.put("newVersion", evt.getNewVersion() != null ? evt.getNewVersion().toString() : "");
                     patchJson.put("changeLog", evt.getChangeLog() != null ? evt.getChangeLog().toString() : "");
+                    patchJson.put("sizeInMB", evt.getSizeInMB());
                     patchJson.put("timestamp", evt.getTimestamp());
                     patchJson.put("releaseDate", Instant.ofEpochMilli(evt.getTimestamp()).toString());
                     

@@ -17,8 +17,10 @@ import com.sun.net.httpserver.HttpServer;
 
 // Import des handlers Kafka Streams
 import org.steamproject.infra.kafka.streams.PlayerStreamsProjection;
+import org.steamproject.infra.kafka.streams.ReviewVotesStreams;
 import org.steamproject.infra.kafka.streams.handlers.PlayerStreamsHandler;
 import org.steamproject.infra.kafka.streams.handlers.PurchaseStreamsHandler;
+import org.steamproject.infra.kafka.streams.handlers.ReviewVoteHandler;
 
 /**
  * Service REST exposant les données des projections Kafka via HTTP.
@@ -64,6 +66,45 @@ public class PurchaseRestService {
         playerStreamsThread.setDaemon(true);
         playerStreamsThread.start();
 
+        // ==================== KAFKA STREAMS FOR PUBLISHER STATS ====================
+        System.out.println("Starting PublisherStatsStreams...");
+        Thread publisherStatsThread = new Thread(() -> {
+            try {
+                org.steamproject.infra.kafka.streams.PublisherStatsStreams.startStreams();
+            } catch (Throwable t) {
+                System.err.println("Error starting PublisherStatsStreams: " + t.getMessage());
+                t.printStackTrace();
+            }
+        }, "publisher-stats-streams-thread");
+        publisherStatsThread.setDaemon(true);
+        publisherStatsThread.start();
+
+        // ==================== KAFKA STREAMS FOR REVIEW VOTES ====================
+        System.out.println("Starting ReviewVotesStreams...");
+        Thread reviewVotesThread = new Thread(() -> {
+            try {
+                ReviewVotesStreams.startStreams();
+            } catch (Throwable t) {
+                System.err.println("Error starting ReviewVotesStreams: " + t.getMessage());
+                t.printStackTrace();
+            }
+        }, "review-votes-streams-thread");
+        reviewVotesThread.setDaemon(true);
+        reviewVotesThread.start();
+
+        // ==================== KAFKA STREAMS FOR GAME TO PLATFORM ROUTING ====================
+        System.out.println("Starting GameToPlatformCatalogStreams...");
+        Thread gameToPlatformThread = new Thread(() -> {
+            try {
+                org.steamproject.infra.kafka.streams.GameToPlatformCatalogStreams.startStreams();
+            } catch (Throwable t) {
+                System.err.println("Error starting GameToPlatformCatalogStreams: " + t.getMessage());
+                t.printStackTrace();
+            }
+        }, "game-to-platform-streams-thread");
+        gameToPlatformThread.setDaemon(true);
+        gameToPlatformThread.start();
+
         // Wait for Kafka Streams to be ready
         Thread.sleep(3000);
 
@@ -78,7 +119,7 @@ public class PurchaseRestService {
         publisherThread.setDaemon(true);
         publisherThread.start();
 
-        String platTopic = System.getProperty("kafka.topic.platform", "platform-catalog-events");
+        String platTopic = System.getProperty("kafka.topic.platform", "platform-catalog.events");
         String platGroup = System.getProperty("kafka.group.platform", "platform-consumer-group-rest");
         Thread platformThread = new Thread(() -> {
             try {
@@ -95,6 +136,8 @@ public class PurchaseRestService {
         // ==================== HANDLERS KAFKA STREAMS ====================
         server.createContext("/api/players", new PlayerStreamsHandler());  // Kafka Streams
         server.createContext("/api/purchase", new PurchaseStreamsHandler(bootstrap, sr, purchaseTopic));  // Kafka Streams
+        server.createContext("/api/publisher-stats", new PublisherStatsHandler());  // Publisher Stats Kafka Streams
+        server.createContext("/api/reviews", new ReviewVoteHandler(bootstrap, sr));  // Review Votes Kafka Streams
 
         // ==================== HANDLERS CLASSIC (non migrés) ====================
         server.createContext("/api/purchases", new PurchasesHandler());
@@ -406,6 +449,96 @@ public class PurchaseRestService {
             String response = mapper.writeValueAsString(out);
             exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
             byte[] bytes = response.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (java.io.OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
+        }
+    }
+
+    /**
+     * Handler pour les statistiques avancées des éditeurs (réactivité, qualité).
+     *
+     * Routes :
+     * - GET /api/publisher-stats : Toutes les statistiques de tous les éditeurs
+     * - GET /api/publisher-stats/{publisherId} : Statistiques d'un éditeur spécifique
+     * - GET /api/publisher-stats/top/quality : Éditeur avec le meilleur score qualité
+     * - GET /api/publisher-stats/top/reactivity : Éditeur avec le meilleur score réactivité
+     */
+    static class PublisherStatsHandler implements HttpHandler {
+        private final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        @Override
+        public void handle(com.sun.net.httpserver.HttpExchange exchange) throws java.io.IOException {
+            String path = exchange.getRequestURI().getPath();
+            String[] parts = path.split("/");
+
+            try {
+                // GET /api/publisher-stats
+                if ("/api/publisher-stats".equals(path) || "/api/publisher-stats/".equals(path)) {
+                    var allStats = org.steamproject.infra.kafka.streams.PublisherStatsStreams.getAllPublisherStats();
+                    String response = mapper.writeValueAsString(allStats);
+                    sendJsonResponse(exchange, response);
+                    return;
+                }
+
+                // GET /api/publisher-stats/top/quality
+                if (parts.length >= 5 && "top".equals(parts[3]) && "quality".equals(parts[4])) {
+                    var top = org.steamproject.infra.kafka.streams.PublisherStatsStreams.getTopQualityPublisher();
+                    if (top != null) {
+                        java.util.Map<String, Object> result = new java.util.HashMap<>();
+                        result.put("publisherId", top.getKey());
+                        result.put("qualityScore", top.getValue());
+                        // Essayer de récupérer le nom de l'éditeur
+                        try {
+                            var stats = org.steamproject.infra.kafka.streams.PublisherStatsStreams.getPublisherStats(top.getKey());
+                            if (stats != null) result.putAll(stats);
+                        } catch (Exception e) { /* ignore */ }
+                        sendJsonResponse(exchange, mapper.writeValueAsString(result));
+                    } else {
+                        sendJsonResponse(exchange, "{}");
+                    }
+                    return;
+                }
+
+                // GET /api/publisher-stats/top/reactivity
+                if (parts.length >= 5 && "top".equals(parts[3]) && "reactivity".equals(parts[4])) {
+                    var top = org.steamproject.infra.kafka.streams.PublisherStatsStreams.getTopReactivityPublisher();
+                    if (top != null) {
+                        java.util.Map<String, Object> result = new java.util.HashMap<>();
+                        result.put("publisherId", top.getKey());
+                        result.put("reactivityScore", top.getValue());
+                        try {
+                            var stats = org.steamproject.infra.kafka.streams.PublisherStatsStreams.getPublisherStats(top.getKey());
+                            if (stats != null) result.putAll(stats);
+                        } catch (Exception e) { /* ignore */ }
+                        sendJsonResponse(exchange, mapper.writeValueAsString(result));
+                    } else {
+                        sendJsonResponse(exchange, "{}");
+                    }
+                    return;
+                }
+
+                // GET /api/publisher-stats/{publisherId}
+                if (parts.length >= 4) {
+                    String publisherId = parts[3];
+                    var stats = org.steamproject.infra.kafka.streams.PublisherStatsStreams.getPublisherStats(publisherId);
+                    if (stats != null) {
+                        sendJsonResponse(exchange, mapper.writeValueAsString(stats));
+                    } else {
+                        sendJsonResponse(exchange, "{}");
+                    }
+                    return;
+                }
+
+                exchange.sendResponseHeaders(404, -1);
+            } catch (Exception e) {
+                e.printStackTrace();
+                exchange.sendResponseHeaders(500, -1);
+            }
+        }
+
+        private void sendJsonResponse(com.sun.net.httpserver.HttpExchange exchange, String json) throws java.io.IOException {
+            exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+            byte[] bytes = json.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length);
             try (java.io.OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
         }

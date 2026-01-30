@@ -34,6 +34,33 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
         } catch (_: Exception) { null }
     }
 
+    // Récupère les votes agrégés pour toutes les évaluations
+    private fun fetchReviewVotes(): Map<String, Triple<Int, Int, List<String>>> {
+        // Retourne une map: reviewId -> Triple(helpfulVotes, notHelpfulVotes, votedByPlayerIds)
+        return try {
+            val votesBody = safeGet("/api/reviews/votes") ?: return emptyMap()
+            val votesNode = mapper.readTree(votesBody)
+            val result = mutableMapOf<String, Triple<Int, Int, List<String>>>()
+            if (votesNode.isArray) {
+                for (vn in votesNode) {
+                    val reviewId = vn.get("reviewId")?.asText() ?: continue
+                    val helpful = vn.get("helpfulVotes")?.asInt() ?: 0
+                    val notHelpful = vn.get("notHelpfulVotes")?.asInt() ?: 0
+                    val voterIds = mutableListOf<String>()
+                    val votersNode = vn.get("voters")
+                    if (votersNode != null && votersNode.isArray) {
+                        for (voter in votersNode) {
+                            val pid = voter.get("playerId")?.asText()
+                            if (pid != null) voterIds.add(pid)
+                        }
+                    }
+                    result[reviewId] = Triple(helpful, notHelpful, voterIds)
+                }
+            }
+            result
+        } catch (_: Exception) { emptyMap() }
+    }
+
     // Récupère de manière synchrone toutes les évaluations et les indexe par gameId
     private fun fetchAllReviewsByGame(): Map<String, List<Rating>> {
         try {
@@ -47,6 +74,9 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                     playerNames[pid] = uname
                 }
             }
+
+            // Récupère les votes pour toutes les évaluations
+            val allVotes = fetchReviewVotes()
 
             val byGame = mutableMapOf<String, MutableList<Rating>>()
             if (playersNode.isArray) {
@@ -65,7 +95,26 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                         val date = try { java.time.Instant.ofEpochMilli(ts).toString() } catch (_: Exception) { java.time.Instant.now().toString() }
                         val playtime = try { rn.get("playtime")?.asInt() ?: 0 } catch (_: Exception) { 0 }
                         val isRecommended = try { rn.get("isRecommended")?.asBoolean() ?: true } catch (_: Exception) { true }
-                        val model = Rating(id = rid, username = uname, playerId = pid, rating = ratingVal, comment = title, date = date, playtime = playtime, isRecommended = isRecommended)
+                        
+                        // Enrichit avec les votes si disponibles
+                        val votes = allVotes[rid]
+                        val helpfulVotes = votes?.first ?: 0
+                        val notHelpfulVotes = votes?.second ?: 0
+                        val votedByPlayerIds = votes?.third ?: emptyList()
+                        
+                        val model = Rating(
+                            id = rid, 
+                            username = uname, 
+                            playerId = pid, 
+                            rating = ratingVal, 
+                            comment = title, 
+                            date = date, 
+                            playtime = playtime, 
+                            isRecommended = isRecommended,
+                            helpfulVotes = helpfulVotes,
+                            notHelpfulVotes = notHelpfulVotes,
+                            votedByPlayerIds = votedByPlayerIds
+                        )
                         val list = byGame.getOrPut(gid) { mutableListOf() }
                         list.add(model)
                     }
@@ -144,7 +193,16 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                             val newV = pn.get("newVersion")?.asText() ?: ""
                             val desc = pn.get("description")?.asText() ?: ""
                             val ts = pn.get("releaseTimestamp")?.asLong()?.let { it } ?: System.currentTimeMillis()
-                            ps.add(Patch(id = pid, gameId = id, gameName = name, platform = hw ?: "", oldVersion = oldV, newVersion = newV, type = PatchType.ADD, description = desc, changes = emptyList(), sizeInMB = 0, releaseDate = try { Instant.ofEpochMilli(ts).toString() } catch (_: Exception) { Instant.now().toString() }, timestamp = ts))
+                            val sizeVal = if (pn.get("sizeInMB") != null && !pn.get("sizeInMB").isNull) pn.get("sizeInMB").asInt()
+                                         else if (pn.get("sizeMb") != null && !pn.get("sizeMb").isNull) pn.get("sizeMb").asInt()
+                                         else if (pn.get("size") != null && !pn.get("size").isNull) try { pn.get("size").asInt() } catch (e: Exception) { 0 } else 0
+                            val patchTypeStr = pn.get("patchType")?.asText()?.uppercase() ?: "FIX"
+                            val patchType = when (patchTypeStr) {
+                                "ADD" -> PatchType.ADD
+                                "OPTIMIZATION" -> PatchType.OPTIMIZATION
+                                else -> PatchType.FIX
+                            }
+                            ps.add(Patch(id = pid, gameId = id, gameName = name, platform = hw ?: "", oldVersion = oldV, newVersion = newV, type = patchType, description = desc, changes = emptyList(), sizeInMB = sizeVal, releaseDate = try { Instant.ofEpochMilli(ts).toString() } catch (_: Exception) { Instant.now().toString() }, timestamp = ts))
                         }
                         ps
                     } else emptyList()
@@ -242,12 +300,32 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
     override suspend fun getPublishers(): List<Publisher> = withContext(Dispatchers.IO) {
         try {
             // Récupère les métadonnées des éditeurs (id, nom, ...) depuis le REST de la projection
-            val metaBody = safeGet("/api/publishers") ?: return@withContext emptyList()
+            val metaBody = safeGet("/api/publishers")
+            println("[ProjectionDataService] getPublishers: metaBody length = ${metaBody?.length ?: 0}")
+            if (metaBody == null) {
+                println("[ProjectionDataService] getPublishers: /api/publishers returned null, returning empty list")
+                return@withContext emptyList()
+            }
             val publishers: List<Publisher> = mapper.readValue(metaBody, object : TypeReference<List<Publisher>>() {})
+            println("[ProjectionDataService] getPublishers: parsed ${publishers.size} publishers")
 
             // Récupère séparément les compteurs et les fusionne ; si l'endpoint des compteurs est indisponible, utilise 0 par défaut
             val countsBody = safeGet("/api/publishers-list")
             val counts: Map<String, Int> = if (countsBody != null) mapper.readValue(countsBody, object : TypeReference<Map<String, Int>>() {}) else emptyMap()
+
+            // Récupère les statistiques avancées (réactivité, qualité) depuis Kafka Streams
+            val statsBody = safeGet("/api/publisher-stats")
+            val statsNode: JsonNode? = statsBody?.let { mapper.readTree(it) }
+            val publisherStats = mutableMapOf<String, JsonNode>()
+            try {
+                if (statsNode != null && statsNode.isObject) {
+                    val iter = statsNode.fields()
+                    while (iter.hasNext()) {
+                        val entry = iter.next()
+                        publisherStats[entry.key] = entry.value
+                    }
+                }
+            } catch (_: Exception) { /* ignore */ }
 
             // Récupère le catalogue et les achats pour calculer la somme des incidents, le nombre de patchs et les jeux actifs
             val catalogBody = safeGet("/api/catalog")
@@ -290,15 +368,34 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                 }
             } catch (_: Exception) { /* ignore */ }
 
-            // Mappe les éditeurs et injecte les statistiques calculées (averageRating de l'éditeur laissé vide pour l'instant)
+            // Mappe les éditeurs et injecte les statistiques calculées
             publishers.map { p ->
                 val gpSet = publishedGamesByPub[p.id] ?: emptySet()
                 val active = gpSet.count { purchasedGameIds.contains(it) }
                 val patches = patchesByPub[p.id] ?: 0
                 val incidents = incidentsByPub[p.id]
-                p.copy(gamesPublished = counts[p.id] ?: gpSet.size, activeGames = active, totalIncidents = incidents, patchCount = patches, averageRating = null)
+                
+                // Récupère les stats Kafka Streams pour cet éditeur
+                val stats = publisherStats[p.id]
+                val avgRating = stats?.get("averageRating")?.asDouble()
+                val reactivityScore = stats?.get("reactivityScore")?.asInt()
+                val qualityScoreKafka = stats?.get("qualityScore")?.asDouble()
+                
+                p.copy(
+                    gamesPublished = counts[p.id] ?: gpSet.size, 
+                    activeGames = active, 
+                    totalIncidents = incidents ?: stats?.get("totalIncidents")?.asInt(), 
+                    patchCount = patches.takeIf { it > 0 } ?: stats?.get("totalPatches")?.asInt(),
+                    averageRating = avgRating,
+                    reactivity = reactivityScore,
+                    qualityScore = qualityScoreKafka
+                )
             }
-        } catch (_: Exception) { emptyList() }
+        } catch (e: Exception) { 
+            println("[ProjectionDataService] getPublishers: EXCEPTION - ${e.message}")
+            e.printStackTrace()
+            emptyList() 
+        }
     }
 
     override suspend fun getPublisher(publisherId: String): Publisher? = withContext(Dispatchers.IO) {
@@ -389,7 +486,16 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
                             val newV = pn.get("newVersion")?.asText() ?: ""
                             val desc = pn.get("description")?.asText() ?: ""
                             val ts = pn.get("releaseTimestamp")?.asLong()?.let { it } ?: System.currentTimeMillis()
-                                out.add(Patch(id = pid, gameId = gid, gameName = gname, platform = console, oldVersion = oldV, newVersion = newV, type = PatchType.ADD, description = desc, changes = emptyList(), sizeInMB = 0, releaseDate = try { Instant.ofEpochMilli(ts).toString() } catch (_: Exception) { Instant.now().toString() }, timestamp = ts))
+                            val sizeVal = if (pn.get("sizeInMB") != null && !pn.get("sizeInMB").isNull) pn.get("sizeInMB").asInt()
+                                         else if (pn.get("sizeMb") != null && !pn.get("sizeMb").isNull) pn.get("sizeMb").asInt()
+                                         else if (pn.get("size") != null && !pn.get("size").isNull) try { pn.get("size").asInt() } catch (e: Exception) { 0 } else 0
+                            val patchTypeStr = pn.get("patchType")?.asText()?.uppercase() ?: "FIX"
+                            val patchType = when (patchTypeStr) {
+                                "ADD" -> PatchType.ADD
+                                "OPTIMIZATION" -> PatchType.OPTIMIZATION
+                                else -> PatchType.FIX
+                            }
+                                out.add(Patch(id = pid, gameId = gid, gameName = gname, platform = console, oldVersion = oldV, newVersion = newV, type = patchType, description = desc, changes = emptyList(), sizeInMB = sizeVal, releaseDate = try { Instant.ofEpochMilli(ts).toString() } catch (_: Exception) { Instant.now().toString() }, timestamp = ts))
                         }
                     }
                 }
@@ -538,8 +644,65 @@ class ProjectionDataService(private val restBaseUrl: String = "http://localhost:
     }
 
     override suspend fun getDistributionPlatforms(): List<DistributionPlatform> = DistributionPlatform.getAllKnown()
-    override suspend fun filterByDistributionPlatform(platformId: String?): List<Game> = tryFetchCatalogFromRest() ?: emptyList()
-    override suspend fun getDistributionPlatformStats(): Map<DistributionPlatform, PlatformStats> = emptyMap()
+    
+    override suspend fun filterByDistributionPlatform(platformId: String?): List<Game> = withContext(Dispatchers.IO) {
+        // Si pas de platformId, retourner tout le catalogue
+        if (platformId.isNullOrBlank()) {
+            return@withContext tryFetchCatalogFromRest() ?: emptyList()
+        }
+        
+        // Essayer de récupérer le catalogue de la plateforme spécifique via REST
+        val platformCatalogBody = safeGet("/api/platforms/$platformId/catalog")
+        if (platformCatalogBody != null) {
+            try {
+                val catalogNode = mapper.readTree(platformCatalogBody)
+                if (catalogNode.isArray) {
+                    val gameIds = mutableSetOf<String>()
+                    for (node in catalogNode) {
+                        val gameId = node.get("gameId")?.asText()
+                        if (gameId != null) {
+                            gameIds.add(gameId)
+                        }
+                    }
+                    
+                    // Filtrer le catalogue complet pour ne garder que les jeux de cette plateforme
+                    val fullCatalog = tryFetchCatalogFromRest() ?: emptyList()
+                    return@withContext fullCatalog.filter { it.id in gameIds }
+                }
+            } catch (e: Exception) {
+                println("[ProjectionDataService] filterByDistributionPlatform error: ${e.message}")
+            }
+        }
+        
+        // Fallback: filtrer localement par le distributionPlatformId du jeu ou inférer depuis le hardware
+        val allGames = tryFetchCatalogFromRest() ?: emptyList()
+        allGames.filter { game ->
+            val distPlatform = game.getDistributionPlatform()
+            distPlatform.id.equals(platformId, ignoreCase = true)
+        }
+    }
+    
+    override suspend fun getDistributionPlatformStats(): Map<DistributionPlatform, PlatformStats> = withContext(Dispatchers.IO) {
+        val allGames = tryFetchCatalogFromRest() ?: return@withContext emptyMap()
+        val platforms = DistributionPlatform.getAllKnown()
+        val result = mutableMapOf<DistributionPlatform, PlatformStats>()
+        
+        for (platform in platforms) {
+            // Compte les jeux assignés à cette plateforme
+            val gamesForPlatform = allGames.filter { game ->
+                game.getDistributionPlatform().id == platform.id
+            }
+            
+            result[platform] = PlatformStats(
+                gameCount = gamesForPlatform.size,
+                totalSales = gamesForPlatform.sumOf { it.salesGlobal ?: 0.0 },
+                averageRating = gamesForPlatform.mapNotNull { it.averageRating }.average().takeIf { !it.isNaN() } ?: 0.0
+            )
+        }
+        
+        result
+    }
+    
     override suspend fun getHardwareSupports(): List<String> = getPlatforms()
     override suspend fun filterByHardwareSupport(hardwareCode: String?): List<Game> = filterByPlatform(hardwareCode)
 }

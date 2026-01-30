@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import org.example.ui.viewmodel.GameDetailViewModel
 import org.example.model.DistributionPlatform
 import org.example.ui.viewmodel.UiState
+import org.example.utils.SizeFormatter
 
 /**
  * Écran de détails d'un jeu
@@ -429,7 +430,7 @@ private fun PatchItem(patch: org.example.model.Patch) {
             .padding(12.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "${patch.oldVersion} → ${patch.newVersion}",
                     fontWeight = FontWeight.Bold,
@@ -444,6 +445,18 @@ private fun PatchItem(patch: org.example.model.Patch) {
                         .background(MaterialTheme.colors.primary, RoundedCornerShape(4.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                // Affichage de la taille du patch
+                if (patch.sizeInMB > 0) {
+                    Text(
+                        text = SizeFormatter.formatSize(patch.sizeInMB),
+                        fontSize = 11.sp,
+                        color = Color.White,
+                        modifier = Modifier
+                            .background(Color(0xFF607D8B), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
             Text(
                 text = patch.description,

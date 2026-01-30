@@ -14,6 +14,7 @@ data class PatchPublishedEvent(
     val newVersion: String,
     val changeLog: String,
     val changes: List<Change> = emptyList(),
+    val sizeInMB: Long,
     val timestamp: Long = System.currentTimeMillis()
 )
 

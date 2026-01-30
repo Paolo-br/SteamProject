@@ -63,6 +63,12 @@
       "doc": "Liste détaillée des changements"
     },
     {
+      "name": "sizeInMB",
+      "type": "long",
+      "default": 0,
+      "doc": "Taille du patch en mégaoctets"
+    },
+    {
       "name": "timestamp",
       "type": "long",
       "default": 0,

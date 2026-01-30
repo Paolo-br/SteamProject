@@ -134,7 +134,7 @@ public class PublisherConsumer {
 
             try {
                 String platformId = distributionPlatform;
-                String platTopic = System.getProperty("kafka.topic.platform", "platform-catalog-events");
+                String platTopic = System.getProperty("kafka.topic.platform", "platform-catalog.events");
                 String bootstrap = System.getProperty("kafka.bootstrap", "localhost:9092");
                 String sr = System.getProperty("schema.registry", "http://localhost:8081");
                 org.steamproject.infra.kafka.producer.PlatformProducer pprod = new org.steamproject.infra.kafka.producer.PlatformProducer(bootstrap, sr, platTopic);
@@ -241,25 +241,37 @@ public class PublisherConsumer {
             String desc = evt.getChangeLog() == null ? null : evt.getChangeLog().toString();
             Long ts = evt.getTimestamp();
 
+            // Déterminer le type principal du patch à partir du premier Change
             org.steamproject.model.PatchType inferredType = org.steamproject.model.PatchType.FIX;
             try {
-                java.util.List<?> changes = evt.getChanges();
-                boolean found = false;
+                java.util.List<org.steamproject.events.Change> changes = evt.getChanges();
                 if (changes != null && !changes.isEmpty()) {
-                    for (Object c : changes) {
-                        String s = c == null ? "" : c.toString().toUpperCase();
-                        if (s.contains("ADD")) { inferredType = org.steamproject.model.PatchType.ADD; found = true; break; }
-                        if (s.contains("OPTIMIZATION") || s.contains("OPTIMIZE") || s.contains("OPTIMIS")) { inferredType = org.steamproject.model.PatchType.OPTIMIZATION; found = true; }
-                        if (s.contains("FIX") || s.contains("BUG")) { inferredType = org.steamproject.model.PatchType.FIX; found = true; }
+                    // Le premier changement détermine le type principal du patch
+                    org.steamproject.events.Change firstChange = changes.get(0);
+                    if (firstChange != null && firstChange.getType() != null) {
+                        org.steamproject.events.PatchType avroPatchType = firstChange.getType();
+                        switch (avroPatchType) {
+                            case ADD:
+                                inferredType = org.steamproject.model.PatchType.ADD;
+                                break;
+                            case OPTIMIZATION:
+                                inferredType = org.steamproject.model.PatchType.OPTIMIZATION;
+                                break;
+                            case FIX:
+                            default:
+                                inferredType = org.steamproject.model.PatchType.FIX;
+                                break;
+                        }
                     }
                 }
-                if (!found) {
-                    String txt = desc == null ? "" : desc.toLowerCase();
-                    if (txt.contains("ajout") || txt.contains("add") || txt.contains("feature")) inferredType = org.steamproject.model.PatchType.ADD;
-                    else if (txt.contains("optim") || txt.contains("perf") || txt.contains("optimiz")) inferredType = org.steamproject.model.PatchType.OPTIMIZATION;
-                    else inferredType = org.steamproject.model.PatchType.FIX;
-                }
-            } catch (Exception ignore) { }
+            } catch (Exception ignore) { 
+                // Fallback sur analyse de texte si échec
+                String txt = desc == null ? "" : desc.toLowerCase();
+                if (txt.contains("ajout") || txt.contains("add") || txt.contains("feature") || txt.contains("majeure")) 
+                    inferredType = org.steamproject.model.PatchType.ADD;
+                else if (txt.contains("optim") || txt.contains("perf")) 
+                    inferredType = org.steamproject.model.PatchType.OPTIMIZATION;
+            }
 
             try {
                 String expected = org.steamproject.util.Semver.nextVersionForPatchType(oldVersion, inferredType == null ? org.steamproject.model.PatchType.FIX : inferredType);
@@ -284,8 +296,10 @@ public class PublisherConsumer {
                 }
             }
 
-            GameProjection.getInstance().addPatch(gameId, patchId, oldVersion, newVersion, desc, ts == null ? null : ts);
-            System.out.println("PublisherConsumer added patch " + patchId + " for game=" + gameId + " newVersion=" + newVersion + " (type=" + inferredType + ")");
+            Long sizeInMB = evt.getSizeInMB();
+            String typeStr = inferredType != null ? inferredType.name() : "FIX";
+            GameProjection.getInstance().addPatch(gameId, patchId, oldVersion, newVersion, desc, sizeInMB, ts == null ? null : ts, typeStr);
+            System.out.println("PublisherConsumer added patch " + patchId + " for game=" + gameId + " newVersion=" + newVersion + " (type=" + inferredType + ", size=" + sizeInMB + " MB)");
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
@@ -302,9 +316,10 @@ public class PublisherConsumer {
             String dlcId = evt.getDlcId() == null ? java.util.UUID.randomUUID().toString() : evt.getDlcId().toString();
             String dlcName = evt.getDlcName() == null ? null : evt.getDlcName().toString();
             Double price = evt.getPrice();
+            Long sizeInMB = evt.getSizeInMB();
             Long ts = evt.getReleaseTimestamp();
-            GameProjection.getInstance().addDlc(gameId, dlcId, dlcName, price, ts == null ? null : ts);
-            System.out.println("PublisherConsumer added DLC " + dlcId + " for game=" + gameId);
+            GameProjection.getInstance().addDlc(gameId, dlcId, dlcName, price, sizeInMB, ts == null ? null : ts);
+            System.out.println("PublisherConsumer added DLC " + dlcId + " for game=" + gameId + " (size=" + sizeInMB + " MB)");
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
