@@ -83,6 +83,27 @@ docker-compose ps
 ### Étape 2 : Compiler le projet et générer les classes Avro
 
 ```powershell
+Perso j'ai dû ajouter cela dans le fichier build.gardle.kts (à la place de kotlin{jvmToolchain}) :
+// Explicitly set Java and Kotlin targets to 21 for compatibility
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    kotlinOptions.jvmTarget = "21"
+}
+
+tasks.withType<JavaCompile> {
+    sourceCompatibility = "21"
+    targetCompatibility = "21"
+}
+Et tout ça dans le fichier gradle.properties :
+# Enable Gradle toolchain auto-download
+org.gradle.java.installations.auto-download=false
+
+# Use specific JAVA_HOME
+org.gradle.java.home=C:/Program Files/Eclipse Adoptium/jdk-23.0.2
+
+# Daemon configuration
+org.gradle.daemon=true
+org.gradle.parallel=true
+org.gradle.caching=true
 .\gradlew.bat generateAvroJava classes --no-daemon
 ```
 

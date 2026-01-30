@@ -51,7 +51,15 @@ tasks.test {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(23)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 compose.desktop {
@@ -114,6 +122,14 @@ tasks.register<JavaExec>("runStreamsRest") {
     description = "Run minimal REST service exposing the user-library projection"
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("org.steamproject.infra.kafka.streams.StreamsRestService")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPlayerStreams") {
+    group = "application"
+    description = "Run PlayerStreamsProjection to consume player events with Kafka Streams"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.streams.PlayerStreamsProjection")
     dependsOn("generateAvroJava", "classes")
 }
 
@@ -228,3 +244,28 @@ tasks.register<JavaExec>("runPlayerEventsConsumer") {
     dependsOn("generateAvroJava", "classes")
 }
 
+// ==================== KAFKA STREAMS TASKS ====================
+
+tasks.register<JavaExec>("runPlatformCatalogStreams") {
+    group = "application"
+    description = "Run PlatformCatalogStreams (Kafka Streams pour platform-catalog-store)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.streams.PlatformCatalogStreams")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runPublisherGamesStreams") {
+    group = "application"
+    description = "Run PublisherGamesStreams (Kafka Streams pour publisher-games-store)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.streams.PublisherGamesStreams")
+    dependsOn("generateAvroJava", "classes")
+}
+
+tasks.register<JavaExec>("runGamePatchesStreams") {
+    group = "application"
+    description = "Run GamePatchesStreams (Kafka Streams pour game-patches-store)"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.infra.kafka.streams.GamePatchesStreams")
+    dependsOn("generateAvroJava", "classes")
+}

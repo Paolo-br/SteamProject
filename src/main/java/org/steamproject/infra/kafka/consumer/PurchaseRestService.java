@@ -1,14 +1,19 @@
 package org.steamproject.infra.kafka.consumer;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
+// Import des handlers Kafka Streams
+import org.steamproject.infra.kafka.streams.PlayerStreamsProjection;
+import org.steamproject.infra.kafka.streams.handlers.PlayerStreamsHandler;
+import org.steamproject.infra.kafka.streams.handlers.PurchaseStreamsHandler;
 
 public class PurchaseRestService {
     public static void main(String[] args) throws Exception {
@@ -16,17 +21,25 @@ public class PurchaseRestService {
         String bootstrap = System.getProperty("kafka.bootstrap", "localhost:9092");
         String sr = System.getProperty("schema.registry", "http://localhost:8081");
         String purchaseTopic = System.getProperty("kafka.topic", "game-purchase-events");
-        String extraPlayerTopics = System.getProperty("kafka.topic.player.events", "dlc-purchase-events,game-session-events,crash-report-events,new-rating-events,review-published-events,review-voted-events,player-created-events");
-        String playerTopics = purchaseTopic + "," + extraPlayerTopics;
-        String group = System.getProperty("kafka.group", "player-consumer-group-rest");
-        Thread playerThread = new Thread(() -> {
+        
+        // ==================== KAFKA STREAMS FOR PLAYERS ====================
+        // Start Kafka Streams for player projections instead of classic consumer
+        System.out.println("Starting PlayerStreamsProjection...");
+        System.setProperty("KAFKA_BOOTSTRAP_SERVERS", bootstrap);
+        System.setProperty("SCHEMA_REGISTRY_URL", sr);
+        Thread playerStreamsThread = new Thread(() -> {
             try {
-                PlayerConsumer pc = new PlayerConsumer(bootstrap, sr, playerTopics, group);
-                pc.start();
-            } catch (Throwable t) { t.printStackTrace(); }
-        }, "player-consumer-thread");
-        playerThread.setDaemon(true);
-        playerThread.start();
+                PlayerStreamsProjection.startStreams();
+            } catch (Throwable t) { 
+                System.err.println("Error starting PlayerStreamsProjection: " + t.getMessage());
+                t.printStackTrace(); 
+            }
+        }, "player-streams-thread");
+        playerStreamsThread.setDaemon(true);
+        playerStreamsThread.start();
+        
+        // Wait for Kafka Streams to be ready
+        Thread.sleep(3000);
 
         String pubTopic = System.getProperty("kafka.topic.pub", "game-released-events,game-published-events,game-updated-events,patch-published-events,dlc-published-events,game-version-deprecated-events,editor-responded-events");
         String pubGroup = System.getProperty("kafka.group.pub", "publisher-consumer-group-rest");
@@ -55,203 +68,24 @@ public class PurchaseRestService {
 
         int port = Integer.getInteger("http.port", 8080);
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-        server.createContext("/api/players", new PlayersHandler());
-        server.createContext("/api/purchase", new PurchaseCreateHandler(bootstrap, sr, purchaseTopic));
+        
+        // ==================== HANDLERS KAFKA STREAMS ====================
+        server.createContext("/api/players", new PlayerStreamsHandler());  // Kafka Streams
+        server.createContext("/api/purchase", new PurchaseStreamsHandler(bootstrap, sr, purchaseTopic));  // Kafka Streams
+        
+        // ==================== HANDLERS CLASSIC (non migrés) ====================
         server.createContext("/api/purchases", new PurchasesHandler());
         server.createContext("/api/publishers", new PublisherHandler());
         server.createContext("/api/platforms", new PlatformHandler());
         server.createContext("/api/publishers-list", new PublishersListHandler());
         server.createContext("/api/catalog", new CatalogHandler());
+        
         server.setExecutor(null);
         server.start();
         System.out.println("Purchase REST service listening on http://localhost:" + port + "/api/players/{playerId}/library");
     }
 
-    static class PlayersHandler implements HttpHandler {
-        private final ObjectMapper mapper = new ObjectMapper();
-
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            String path = exchange.getRequestURI().getPath();
-
-            if ("/api/players".equals(path) || "/api/players/".equals(path)) {
-                var list = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().list();
-                String response = mapper.writeValueAsString(list);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
-                exchange.sendResponseHeaders(200, bytes.length);
-                try (OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
-                return;
-            }
-
-            if (path.startsWith("/api/players/") && path.endsWith("/library")) {
-                String[] parts = path.split("/");
-                if (parts.length >= 5) {
-                    String playerId = parts[3];
-                    var library = PlayerLibraryProjection.getInstance().getLibrary(playerId);
-                    // Enrich ownership entries with distribution platform for UI library column
-                    java.util.List<java.util.Map<String,Object>> enriched = new java.util.ArrayList<>();
-                    for (Object o : library) {
-                        try {
-                            var go = (org.steamproject.model.GameOwnership) o;
-                            java.util.Map<String,Object> item = new java.util.HashMap<>();
-                            item.put("gameId", go.gameId());
-                            item.put("gameName", go.gameName());
-                            item.put("purchaseDate", go.purchaseDate());
-                            item.put("playtime", go.playtime());
-                            item.put("pricePaid", go.pricePaid());
-                            // lookup projection to obtain distributionPlatform
-                            var gd = org.steamproject.infra.kafka.consumer.GameProjection.getInstance().getGame(go.gameId());
-                            if (gd != null) {
-                                Object dp = gd.getOrDefault("distributionPlatform", gd.getOrDefault("platform", null));
-                                if (dp != null) item.put("platform", dp);
-                            }
-                            enriched.add(item);
-                        } catch (Throwable t) { /* best-effort */ }
-                    }
-                    String response = mapper.writeValueAsString(enriched);
-                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                    byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
-                    exchange.sendResponseHeaders(200, bytes.length);
-                    try (OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
-                    return;
-                }
-            }
-
-            if (path.startsWith("/api/players/") && path.endsWith("/sessions")) {
-                String[] parts = path.split("/");
-                if (parts.length >= 5) {
-                    String playerId = parts[3];
-                    var sessions = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotSessions().get(playerId);
-                    String response = mapper.writeValueAsString(sessions == null ? java.util.Collections.emptyList() : sessions);
-                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                    byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
-                    exchange.sendResponseHeaders(200, bytes.length);
-                    try (OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
-                    return;
-                }
-            }
-
-            if (path.startsWith("/api/players/") && path.endsWith("/reviews")) {
-                String[] parts = path.split("/");
-                if (parts.length >= 5) {
-                    String playerId = parts[3];
-                    var reviews = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotReviews().get(playerId);
-                    String response = mapper.writeValueAsString(reviews == null ? java.util.Collections.emptyList() : reviews);
-                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                    byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
-                    exchange.sendResponseHeaders(200, bytes.length);
-                    try (OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
-                    return;
-                }
-            }
-
-            exchange.sendResponseHeaders(404, -1);
-        }
-    }
-
-    static class PurchaseCreateHandler implements HttpHandler {
-        private final String bootstrap;
-        private final String schemaRegistry;
-        private final String topic;
-        private final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-
-        public PurchaseCreateHandler(String bootstrap, String schemaRegistry, String topic) {
-            this.bootstrap = bootstrap;
-            this.schemaRegistry = schemaRegistry;
-            this.topic = topic;
-        }
-
-        @Override
-        public void handle(HttpExchange exchange) throws IOException {
-            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                exchange.sendResponseHeaders(405, -1);
-                return;
-            }
-
-            try (java.io.InputStream is = exchange.getRequestBody()) {
-                var node = mapper.readTree(is);
-                String playerId = node.has("playerId") ? node.get("playerId").asText(null) : null;
-                String gameId = node.has("gameId") ? node.get("gameId").asText(null) : null;
-                double price = node.has("price") && !node.get("price").isNull() ? node.get("price").asDouble(0.0) : 0.0;
-
-                if (playerId == null || gameId == null) {
-                    exchange.sendResponseHeaders(400, -1);
-                    return;
-                }
-
-                // validate player exists in projection
-                var players = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshot();
-                if (!players.containsKey(playerId)) {
-                    exchange.sendResponseHeaders(404, -1);
-                    return;
-                }
-
-                // validate game released in projection
-                var game = org.steamproject.infra.kafka.consumer.GameProjection.getInstance().getGame(gameId);
-                if (game == null) {
-                    exchange.sendResponseHeaders(409, -1); // conflict: game not released
-                    return;
-                }
-
-                String gameName = game.getOrDefault("gameName", "") == null ? "" : game.getOrDefault("gameName", "").toString();
-                String publisherId = game.getOrDefault("publisherId", null) == null ? null : game.getOrDefault("publisherId", null).toString();
-
-                // Use the game's listed price as authoritative when available
-                Object gp = game.getOrDefault("price", null);
-                if (gp != null) {
-                    try {
-                        if (gp instanceof Number) {
-                            price = ((Number) gp).doubleValue();
-                        } else {
-                            price = Double.parseDouble(gp.toString());
-                        }
-                    } catch (Exception e) {
-                        // keep provided price on parse failure
-                    }
-                }
-
-                // Build GamePurchaseEvent
-                org.steamproject.events.GamePurchaseEvent evt = org.steamproject.events.GamePurchaseEvent.newBuilder()
-                        .setEventId(java.util.UUID.randomUUID().toString())
-                        .setPurchaseId(java.util.UUID.randomUUID().toString())
-                        .setGameId(gameId)
-                        .setGameName(gameName)
-                        .setPlayerId(playerId)
-                        .setPlayerUsername(players.get(playerId).getOrDefault("username", "").toString())
-                        .setPricePaid(price)
-                        .setPlatform(game.getOrDefault("platform", "").toString())
-                        .setPublisherId(publisherId)
-                        .setRegion(org.steamproject.events.SalesRegion.OTHER)
-                        .setTimestamp(java.time.Instant.now().toEpochMilli())
-                        .build();
-
-                // send to Kafka
-                org.steamproject.infra.kafka.producer.GamePurchaseProducer prod = new org.steamproject.infra.kafka.producer.GamePurchaseProducer(bootstrap, schemaRegistry, topic);
-                try {
-                    prod.send(playerId, evt).get();
-                } catch (Exception e) {
-                    prod.close();
-                    exchange.sendResponseHeaders(500, -1);
-                    return;
-                }
-                prod.close();
-
-                // respond with created
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                var resp = mapper.createObjectNode();
-                resp.put("status", "sent");
-                resp.put("playerId", playerId);
-                resp.put("gameId", gameId);
-                byte[] bytes = mapper.writeValueAsBytes(resp);
-                exchange.sendResponseHeaders(201, bytes.length);
-                try (OutputStream os = exchange.getResponseBody()) { os.write(bytes); }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                exchange.sendResponseHeaders(500, -1);
-            }
-        }
-    }
+    // ==================== HANDLERS NON MIGRÉS (utilisant encore les consumers classiques) ====================
 
     static class PurchasesHandler implements HttpHandler {
         private final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();

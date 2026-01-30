@@ -67,7 +67,7 @@ public class UserLibraryStreams {
 
         ObjectMapper om = new ObjectMapper();
 
-        KStream<String, Object> purchases = builder.stream("purchase.events", Consumed.with(Serdes.String(), avroSerde));
+        KStream<String, Object> purchases = builder.stream("game-purchase-events", Consumed.with(Serdes.String(), avroSerde));
 
         purchases.groupByKey()
                 .aggregate(
