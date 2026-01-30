@@ -22,17 +22,29 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Properties;
 
-
 /**
- * Consommateur pour les événements liés aux joueurs (achats, etc.).
- *
- * Ce consommateur désérialise les événements Avro et délègue le traitement
- * des achats à la méthode.
+ * Consommateur Kafka pour les événements liés aux joueurs.
+ * 
+ * Ce consommateur traite une variété d'événements : créations de joueurs,
+ * achats de jeux et DLCs, sessions de jeu, rapports de crash, notations et avis.
+ * Il désérialise les événements Avro et met à jour les projections PlayerProjection
+ * et PlayerLibraryProjection en conséquence.
  */
 public class PlayerConsumer {
     private final KafkaConsumer<String, Object> consumer;
     private final String topic;
 
+    /**
+     * Construit un nouveau consommateur Kafka pour les événements de joueurs.
+     * 
+     * Configure la désérialisation Avro avec Schema Registry et supporte
+     * la souscription à un ou plusieurs topics (séparés par des virgules).
+     * 
+     * @param bootstrap Adresse du serveur Kafka (ex: localhost:9092)
+     * @param schemaRegistryUrl URL du Schema Registry Confluent
+     * @param topic Nom du topic à consommer, ou liste de topics séparés par des virgules
+     * @param groupId Identifiant du groupe de consommateurs
+     */
     public PlayerConsumer(String bootstrap, String schemaRegistryUrl, String topic, String groupId) {
         this.topic = topic;
         Properties props = new Properties();
@@ -59,9 +71,13 @@ public class PlayerConsumer {
     }
 
     /**
-     * Démarre la boucle de consommation bloquante.
-     * Affiche un message sur la console et boucle en appelant régulièrement
+     * Démarre la boucle de consommation bloquante des événements.
      * 
+     * Cette méthode bloque le thread courant et dispatche chaque événement
+     * vers le handler approprié selon son type. Les événements non reconnus
+     * sont ignorés avec un message de log.
+     * 
+     * La méthode garantit la fermeture propre du consommateur en cas d'arrêt.
      */
     public void start() {
         System.out.println("PlayerConsumer started, listening to " + topic);
@@ -109,10 +125,14 @@ public class PlayerConsumer {
     }
 
     /**
-     * Traite un {@link GamePurchaseEvent} : marque l'événement pour éviter les
-     * doublons, transforme la donnée et met à jour la projection locale.
-     *
-     * @param evt événement d'achat reçu
+     * Traite un événement d'achat de jeu.
+     * 
+     * Vérifie la déduplication via l'eventId, s'assure que le joueur existe,
+     * et évite les achats en double pour un même jeu. Si toutes les validations
+     * passent, ajoute le jeu à la bibliothèque du joueur avec la date d'achat
+     * et le prix payé.
+     * 
+     * @param evt Événement d'achat de jeu à traiter
      */
     public void handleGamePurchase(GamePurchaseEvent evt) {
         try {
@@ -150,6 +170,15 @@ public class PlayerConsumer {
         }
     }
 
+    /**
+     * Traite un événement de création de joueur.
+     * 
+     * Extrait toutes les informations du joueur (username, email, date d'inscription,
+     * données RGPD, informations personnelles) et les insère dans la projection.
+     * Gère de manière défensive les champs optionnels qui peuvent être absents.
+     * 
+     * @param evt Événement de création de joueur à traiter
+     */
     public void handlePlayerCreated(PlayerCreatedEvent evt) {
         try {
             String id = evt.getId().toString();
@@ -169,6 +198,14 @@ public class PlayerConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement d'achat de DLC.
+     * 
+     * Vérifie la déduplication et l'existence du joueur, puis ajoute le DLC
+     * à la bibliothèque du joueur. Le DLC est lié au jeu parent via gameId.
+     * 
+     * @param evt Événement d'achat de DLC à traiter
+     */
     public void handleDlcPurchase(DlcPurchaseEvent evt) {
         try {
             String eventId = evt.getEventId() == null ? "" : evt.getEventId().toString();
@@ -188,6 +225,14 @@ public class PlayerConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement de session de jeu.
+     * 
+     * Enregistre la session dans la projection du joueur et tente de mettre à jour
+     * le temps de jeu total dans la bibliothèque du joueur de manière best-effort.
+     * 
+     * @param evt Événement de session de jeu à traiter
+     */
     public void handleGameSession(GameSessionEvent evt) {
         try {
             String playerId = evt.getPlayerId();
@@ -197,6 +242,14 @@ public class PlayerConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Met à jour le temps de jeu dans la bibliothèque suite à une session (best-effort).
+     * 
+     * Cette méthode auxiliaire extrait la durée de session et la dernière date de jeu
+     * pour les ajouter aux statistiques de la bibliothèque du joueur.
+     * 
+     * @param evt Événement de session contenant les informations de temps de jeu
+     */
     private void updateLibraryPlaytimeFromSession(GameSessionEvent evt) {
         try {
             String playerId = evt.getPlayerId();
@@ -207,6 +260,15 @@ public class PlayerConsumer {
         } catch (Throwable t) {  }
     }
 
+    /**
+     * Traite un événement de rapport de crash.
+     * 
+     * Vérifie la déduplication du crash et s'assure que le joueur possède bien
+     * le jeu concerné avant d'enregistrer le crash. Incrémente également le compteur
+     * d'incidents du jeu de manière best-effort.
+     * 
+     * @param evt Événement de rapport de crash à traiter
+     */
     public void handleCrashReport(CrashReportEvent evt) {
         try {
             String eventId = evt.getCrashId() == null ? "" : evt.getCrashId();
@@ -237,6 +299,13 @@ public class PlayerConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement de notation de jeu.
+     * 
+     * Crée une review avec un ID généré automatiquement et l'ajoute aux avis du joueur.
+     * 
+     * @param evt Événement de notation à traiter
+     */
     public void handleNewRating(NewRatingEvent evt) {
         try {
             String playerId = evt.getPlayerId();
@@ -245,6 +314,13 @@ public class PlayerConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement de publication d'avis détaillé.
+     * 
+     * Enregistre un avis complet avec titre, texte et indication de spoilers.
+     * 
+     * @param evt Événement de publication d'avis à traiter
+     */
     public void handleReviewPublished(ReviewPublishedEvent evt) {
         try {
             String playerId = evt.getPlayerId();
@@ -253,6 +329,13 @@ public class PlayerConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement de vote sur un avis.
+     * 
+     * Actuellement, cet événement est simplement logué sans traitement supplémentaire.
+     * 
+     * @param evt Événement de vote sur avis à traiter
+     */
     public void handleReviewVoted(ReviewVotedEvent evt) {
         try {
             System.out.println("PlayerConsumer received review vote reviewId=" + evt.getReviewId() + " voter=" + evt.getVoterPlayerId() + " helpful=" + evt.getIsHelpful());

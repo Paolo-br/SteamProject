@@ -3,11 +3,29 @@ package org.steamproject.infra.kafka.consumer;
 import java.util.Collections;
 import java.util.Properties;
 
-
+/**
+ * Consommateur Kafka pour les événements liés aux éditeurs de jeux.
+ * 
+ * Ce consommateur traite les événements de cycle de vie des jeux publiés par les éditeurs :
+ * sorties de jeux, publications, mises à jour, patches, DLCs, dépréciations de versions
+ * et réponses aux incidents. Il maintient à jour les projections GameProjection et
+ * PublisherProjection, et peut déclencher des événements downstream vers d'autres topics.
+ */
 public class PublisherConsumer {
     private final org.apache.kafka.clients.consumer.KafkaConsumer<String, Object> consumer;
     private final String topic;
 
+    /**
+     * Construit un nouveau consommateur Kafka pour les événements d'éditeurs.
+     * 
+     * Configure la désérialisation Avro avec Schema Registry et supporte
+     * la souscription à plusieurs topics séparés par des virgules.
+     * 
+     * @param bootstrap Adresse du serveur Kafka (ex: localhost:9092)
+     * @param schemaRegistryUrl URL du Schema Registry Confluent
+     * @param topic Nom du topic à consommer, ou liste de topics séparés par des virgules
+     * @param groupId Identifiant du groupe de consommateurs
+     */
     public PublisherConsumer(String bootstrap, String schemaRegistryUrl, String topic, String groupId) {
         this.topic = topic;
         java.util.Properties props = new java.util.Properties();
@@ -29,6 +47,16 @@ public class PublisherConsumer {
         this.consumer.subscribe(topics);
     }
 
+    /**
+     * Démarre la boucle de consommation bloquante des événements.
+     * 
+     * Cette méthode bloque le thread courant et dispatche chaque événement
+     * vers le handler approprié selon son type (GameReleased, GamePublished,
+     * PatchPublished, DlcPublished, etc.). Les événements non reconnus sont
+     * ignorés avec un message de log.
+     * 
+     * La méthode garantit la fermeture propre du consommateur en cas d'arrêt.
+     */
     public void start() {
         System.out.println("PublisherConsumer started, listening to " + topic);
         try {
@@ -69,6 +97,16 @@ public class PublisherConsumer {
         }
     }
 
+    /**
+     * Traite un événement de sortie de jeu.
+     * 
+     * Vérifie la déduplication via l'eventId, ajoute le jeu au catalogue de l'éditeur,
+     * met à jour la projection du jeu, infère la plateforme de distribution depuis
+     * le code hardware, et publie un événement de mise à jour du catalogue de plateforme
+     * de manière best-effort.
+     * 
+     * @param evt Événement de sortie de jeu à traiter
+     */
     public void handleGameReleased(org.steamproject.events.GameReleasedEvent evt) {
         try {
             String eventId = evt.getEventId() == null ? "" : evt.getEventId().toString();
@@ -114,6 +152,14 @@ public class PublisherConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement de publication de jeu.
+     * 
+     * Similaire à handleGameReleased mais sans année de sortie explicite.
+     * Ajoute le jeu au catalogue de l'éditeur et met à jour la projection du jeu.
+     * 
+     * @param evt Événement de publication de jeu à traiter
+     */
     public void handleGamePublished(org.steamproject.events.GamePublishedEvent evt) {
         try {
             String pubId = evt.getPublisherId().toString();
@@ -134,6 +180,14 @@ public class PublisherConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement de mise à jour de jeu.
+     * 
+     * Applique les modifications de champs spécifiées dans l'événement en mettant
+     * à jour la projection du jeu champ par champ.
+     * 
+     * @param evt Événement de mise à jour de jeu à traiter
+     */
     public void handleGameUpdated(org.steamproject.events.GameUpdatedEvent evt) {
         try {
             String gameId = evt.getGameId().toString();
@@ -149,6 +203,16 @@ public class PublisherConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Met à jour un champ spécifique d'un jeu dans la projection.
+     * 
+     * Méthode auxiliaire qui récupère les données actuelles du jeu, modifie
+     * le champ spécifié, puis réinsère l'ensemble dans la projection.
+     * 
+     * @param gameId Identifiant du jeu
+     * @param key Nom du champ à modifier
+     * @param value Nouvelle valeur (null pour supprimer le champ)
+     */
     private void storeUpsertField(String gameId, String key, String value) {
         var gd = GameProjection.getInstance().getGame(gameId);
         if (gd == null) return;
@@ -159,6 +223,15 @@ public class PublisherConsumer {
         GameProjection.getInstance().upsertGame(gameId, distributionPlatform, console, (String) m.get("gameName"), (Integer) m.get("releaseYear"), (String) m.get("genre"), (String) m.get("publisherId"), (String) m.get("initialVersion"), (Double) m.get("price"));
     }
 
+    /**
+     * Traite un événement de publication de patch.
+     * 
+     * Infère le type de patch (ADD/OPTIMIZATION/FIX) depuis les changements ou le changelog,
+     * valide et ajuste le numéro de version selon la sémantique SemVer si nécessaire,
+     * puis ajoute le patch à la projection du jeu avec création automatique d'une nouvelle version.
+     * 
+     * @param evt Événement de publication de patch à traiter
+     */
     public void handlePatchPublished(org.steamproject.events.PatchPublishedEvent evt) {
         try {
             String gameId = evt.getGameId().toString();
@@ -197,7 +270,6 @@ public class PublisherConsumer {
                         int cmp = org.steamproject.util.Semver.compare(newVersion, oldVersion);
                         if (cmp <= 0) shouldAdjust = true;
                         else if (!newVersion.equals(expected)) {
-                            // If provided version doesn't match expected increment, adjust to expected
                             shouldAdjust = true;
                         }
                     } catch (Exception ex) { shouldAdjust = true; }
@@ -207,7 +279,6 @@ public class PublisherConsumer {
                     newVersion = expected;
                 }
             } catch (Exception ex) {
-                // fallback: leave provided newVersion or increment patch
                 if (newVersion == null || newVersion.isBlank()) {
                     newVersion = org.steamproject.util.Semver.incrementPatch(oldVersion);
                 }
@@ -218,6 +289,13 @@ public class PublisherConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement de publication de DLC.
+     * 
+     * Génère un ID de DLC si absent, puis ajoute le DLC à la projection du jeu parent.
+     * 
+     * @param evt Événement de publication de DLC à traiter
+     */
     public void handleDlcPublished(org.steamproject.events.DlcPublishedEvent evt) {
         try {
             String gameId = evt.getGameId().toString();
@@ -230,6 +308,13 @@ public class PublisherConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement de dépréciation de version de jeu.
+     * 
+     * Marque une version spécifique comme dépréciée dans la projection du jeu.
+     * 
+     * @param evt Événement de dépréciation de version à traiter
+     */
     public void handleGameVersionDeprecated(org.steamproject.events.GameVersionDeprecatedEvent evt) {
         try {
             String gameId = evt.getGameId().toString();
@@ -240,6 +325,14 @@ public class PublisherConsumer {
         } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    /**
+     * Traite un événement de réponse de l'éditeur à un incident.
+     * 
+     * Enregistre la réponse officielle de l'éditeur concernant un incident signalé
+     * (crash, bug, etc.) dans la projection du jeu.
+     * 
+     * @param evt Événement de réponse d'éditeur à traiter
+     */
     public void handleEditorResponse(org.steamproject.events.EditorRespondedToIncidentEvent evt) {
         try {
             String gameId = evt.getGameId().toString();

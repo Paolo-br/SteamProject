@@ -24,12 +24,36 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * CLI utilitaire combinant l'envoi d'événements PlayerCreated et GamePurchase.
- * Mode d'utilisation via propriétés système :
- * -Dmode=create       -> envoie un PlayerCreatedEvent (génération automatique si pas d'autres -D)
- * -Dmode=purchase     -> envoie un GamePurchaseEvent (utilise GamePurchaseProducer)
+ * Application CLI utilitaire pour générer et publier des événements de joueurs dans Kafka.
+ * 
+ * Cette application supporte plusieurs modes d'opération contrôlés par la propriété système
+ * -Dmode=<mode>. Chaque mode génère un type d'événement spécifique et le publie dans Kafka.
+ * L'application peut soit utiliser des données fournies via propriétés système, soit générer
+ * des données aléatoires, soit interroger le service REST pour obtenir des données réalistes.
+ * 
+ * Modes disponibles :
+ * - create : Création d'un nouveau joueur (PlayerCreatedEvent)
+ * - purchase : Achat de jeu (GamePurchaseEvent)
+ * - dlc_purchase : Achat de DLC (DlcPurchaseEvent)
+ * - launch : Première session de jeu (GameSessionEvent FIRST_LAUNCH)
+ * - stop : Fin de session de jeu (GameSessionEvent CASUAL)
+ * - playsession : Session de jeu générique (GameSessionEvent CASUAL)
+ * - crash : Rapport de crash (CrashReportEvent)
+ * - rate : Notation de jeu (NewRatingEvent)
+ * - review_publish : Publication d'avis détaillé (ReviewPublishedEvent)
+ * - review_vote : Vote sur un avis (ReviewVotedEvent)
  */
 public class PlayerProducerApp {
+    
+    /**
+     * Génère un timestamp aléatoire entre la date d'achat et maintenant.
+     * 
+     * Cette méthode est utilisée pour créer des timestamps réalistes pour les sessions
+     * de jeu qui doivent se produire après l'achat du jeu.
+     * 
+     * @param purchaseDateStr Date d'achat au format ISO (peut être null)
+     * @return Timestamp en millisecondes entre la date d'achat et maintenant
+     */
     private static long randomTimestampBetween(String purchaseDateStr) {
         long now = Instant.now().toEpochMilli();
         long start;
@@ -37,7 +61,7 @@ public class PlayerProducerApp {
             try {
                 start = Instant.parse(purchaseDateStr).toEpochMilli();
             } catch (Exception e) {
-                start = now - 30L * 24 * 3600 * 1000; // fallback 30 days
+                start = now - 30L * 24 * 3600 * 1000;
             }
         } else {
             start = now - 30L * 24 * 3600 * 1000;
@@ -47,6 +71,17 @@ public class PlayerProducerApp {
         long offset = diff > 0 ? ThreadLocalRandom.current().nextLong(diff + 1) : 0;
         return start + offset;
     }
+    
+    /**
+     * Point d'entrée principal de l'application.
+     * 
+     * Analyse le mode spécifié et exécute la logique correspondante pour générer
+     * et publier l'événement approprié dans Kafka. Utilise les propriétés système
+     * pour la configuration (bootstrap servers, schema registry, topics, etc.).
+     * 
+     * @param args Arguments de ligne de commande (non utilisés, configuration via -D)
+     * @throws Exception En cas d'erreur lors de la publication d'événements
+     */
     public static void main(String[] args) throws Exception {
         String mode = System.getProperty("mode", "create").toLowerCase();
         String bootstrap = System.getProperty("kafka.bootstrap", "localhost:9092");
@@ -188,10 +223,10 @@ public class PlayerProducerApp {
                                             }
                                         }
                                         if (!cOwned) { playerId = cid; playerUsername = cun; break; }
-                                    } catch (Exception ignore) { /* try next candidate */ }
+                                    } catch (Exception ignore) { /* Essayer le candidat suivant */ }
                                 }
                             }
-                        } catch (Exception ignore) { /* ignore if we can't fetch players */ }
+                        } catch (Exception ignore) { /* Ignorer si impossible de récupérer les joueurs */ }
                     }
                 }
             } catch (Exception ignore) {}
@@ -336,7 +371,7 @@ public class PlayerProducerApp {
                                             break;
                                         }
                                     }
-                                } catch (Exception ignore2) { /* try next player */ }
+                                } catch (Exception ignore2) { /* Essayer le joueur suivant */ }
                             }
                         }
                     }
@@ -367,7 +402,7 @@ public class PlayerProducerApp {
                 return;
             }
 
-            int duration = 60 + ThreadLocalRandom.current().nextInt(541); // always random 60..600
+            int duration = 60 + ThreadLocalRandom.current().nextInt(541);
             long timestamp = randomTimestampBetween(purchaseDateStr);
 
             GameSessionEvent ev = GameSessionEvent.newBuilder()
@@ -401,7 +436,7 @@ public class PlayerProducerApp {
             String gameId = null;
             String gameName = System.getProperty("test.game.name", "RealGame");
             String purchaseDateStr = null;
-            int duration = 60 + ThreadLocalRandom.current().nextInt(541); // always random 60..600
+            int duration = 60 + ThreadLocalRandom.current().nextInt(541);
 
             if (playerId == null) {
                 try {
@@ -433,7 +468,7 @@ public class PlayerProducerApp {
                                             break;
                                         }
                                     }
-                                } catch (Exception ignore2) { /* try next player */ }
+                                } catch (Exception ignore2) { /* Essayer le joueur suivant */ }
                             }
                         }
                     }
@@ -494,7 +529,7 @@ public class PlayerProducerApp {
             String playerUsername = System.getProperty("test.player.username", "real_player");
             String gameId = null;
             String gameName = System.getProperty("test.game.name", "RealGame");
-            int duration = 60 + ThreadLocalRandom.current().nextInt(541); // always random 60..600
+            int duration = 60 + ThreadLocalRandom.current().nextInt(541);
 
             if (playerId == null) {
                 try {
@@ -527,7 +562,7 @@ public class PlayerProducerApp {
                                             break;
                                         }
                                     }
-                                } catch (Exception e) { /* ignore candidate errors */ }
+                                } catch (Exception e) { /* Ignorer les erreurs de candidat */ }
                             }
                         }
                     }
@@ -630,7 +665,6 @@ public class PlayerProducerApp {
                 } catch (Exception ignored) {}
             }
 
-            // Fallback: pick random from catalog
             if (gameId == null) {
                 try {
                     HttpRequest req = HttpRequest.newBuilder().uri(URI.create(restBase + "/api/catalog")).GET().build();
@@ -687,7 +721,6 @@ public class PlayerProducerApp {
             int playtime = 0;
 
             try {
-                // Fetch all players once and attempt up to N times to find one with a game >10h
                 HttpRequest allReq = HttpRequest.newBuilder().uri(URI.create(restBase + "/api/players")).GET().build();
                 HttpResponse<String> allResp = client.send(allReq, HttpResponse.BodyHandlers.ofString());
                 if (allResp.statusCode() != 200) {
@@ -705,13 +738,11 @@ public class PlayerProducerApp {
                 int maxAttempts = players.size();
 
                 for (int attempt = 0; attempt < maxAttempts && gameId == null; attempt++) {
-                    // choose random player
                     int idx = ThreadLocalRandom.current().nextInt(players.size());
                     JsonNode p = players.get(idx);
                     String candidateId = p.get("id").asText();
                     String candidateUsername = p.get("username").asText(playerUsername);
 
-                    // fetch library for candidate
                     try {
                         HttpRequest libReq = HttpRequest.newBuilder().uri(URI.create(restBase + "/api/players/" + candidateId + "/library")).GET().build();
                         HttpResponse<String> libResp = client.send(libReq, HttpResponse.BodyHandlers.ofString());
@@ -730,11 +761,11 @@ public class PlayerProducerApp {
                                     playtime = chosen.hasNonNull("playtime") ? chosen.get("playtime").asInt(0) : 0;
                                     playerId = candidateId;
                                     playerUsername = candidateUsername;
-                                    break; // found suitable player+game
+                                    break;
                                 }
                             }
                         }
-                    } catch (Exception ignored) { /* try next candidate */ }
+                    } catch (Exception ignored) { /* Essayer le candidat suivant */ }
                 }
             } catch (Exception ignored) {}
 
