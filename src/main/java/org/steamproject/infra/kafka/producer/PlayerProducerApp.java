@@ -256,6 +256,9 @@ public class PlayerProducerApp {
 
             String playerId = null;
             String playerUsername = System.getProperty("test.player.username", "real_player");
+            java.util.Set<String> ownedGameIds = new java.util.HashSet<>();
+            
+            // First, get a player and their library
             try {
                 HttpRequest req = HttpRequest.newBuilder().uri(URI.create(restBase + "/api/players")).GET().build();
                 HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
@@ -266,6 +269,24 @@ public class PlayerProducerApp {
                         JsonNode p = arr.get(idx);
                         playerId = p.get("id").asText();
                         playerUsername = p.get("username").asText(playerUsername);
+                        
+                        // Now fetch the player's library to know which games they own
+                        try {
+                            HttpRequest libReq = HttpRequest.newBuilder()
+                                .uri(URI.create(restBase + "/api/players/" + playerId + "/library"))
+                                .GET().build();
+                            HttpResponse<String> libResp = client.send(libReq, HttpResponse.BodyHandlers.ofString());
+                            if (libResp.statusCode() == 200) {
+                                JsonNode libArr = mapper.readTree(libResp.body());
+                                if (libArr.isArray()) {
+                                    for (JsonNode game : libArr) {
+                                        if (game.has("gameId")) {
+                                            ownedGameIds.add(game.get("gameId").asText());
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception ignored) {}
                     }
                 }
             } catch (Exception ignored) {}
@@ -275,22 +296,28 @@ public class PlayerProducerApp {
             String gameId = null;
             double price = Double.parseDouble(System.getProperty("test.price", "4.99"));
             String platform = System.getProperty("test.platform", "PC");
+            
+            // Get catalog and filter to only games the player owns (for DLC purchase)
+            // A player can only buy a DLC if they own the parent game
             try {
                 HttpRequest req = HttpRequest.newBuilder().uri(URI.create(restBase + "/api/catalog")).GET().build();
                 HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
                 if (resp.statusCode() == 200) {
                     JsonNode arr = mapper.readTree(resp.body());
-                    java.util.List<JsonNode> gamesWithDlcs = new java.util.ArrayList<>();
+                    java.util.List<JsonNode> ownedGamesWithDlcs = new java.util.ArrayList<>();
                     if (arr.isArray()) {
                         for (JsonNode g : arr) {
-                            if (g.has("dlcs") && g.get("dlcs").isArray() && g.get("dlcs").size() > 0) {
-                                gamesWithDlcs.add(g);
+                            String gid = g.has("gameId") ? g.get("gameId").asText() : null;
+                            // Only include games the player owns AND that have DLCs
+                            if (gid != null && ownedGameIds.contains(gid) && 
+                                g.has("dlcs") && g.get("dlcs").isArray() && g.get("dlcs").size() > 0) {
+                                ownedGamesWithDlcs.add(g);
                             }
                         }
                     }
-                    if (!gamesWithDlcs.isEmpty()) {
-                        int gi = ThreadLocalRandom.current().nextInt(gamesWithDlcs.size());
-                        JsonNode g = gamesWithDlcs.get(gi);
+                    if (!ownedGamesWithDlcs.isEmpty()) {
+                        int gi = ThreadLocalRandom.current().nextInt(ownedGamesWithDlcs.size());
+                        JsonNode g = ownedGamesWithDlcs.get(gi);
                         gameId = g.get("gameId").asText();
                         JsonNode dlcs = g.get("dlcs");
                         int di = ThreadLocalRandom.current().nextInt(dlcs.size());
@@ -300,12 +327,26 @@ public class PlayerProducerApp {
                         if (chosen.hasNonNull("price")) price = chosen.get("price").asDouble(price);
                         if (g.hasNonNull("platform")) platform = g.get("platform").asText(platform);
                         else if (g.hasNonNull("console")) platform = g.get("console").asText(platform);
+                    } else if (!ownedGameIds.isEmpty()) {
+                        // Player owns games but none have DLCs available
+                        System.out.println("Player " + playerId + " owns " + ownedGameIds.size() + " games but none have DLCs available.");
+                        return; // Don't send purchase
+                    } else {
+                        // Player doesn't own any games
+                        System.out.println("Player " + playerId + " doesn't own any games. Cannot purchase DLC.");
+                        return; // Don't send purchase
                     }
                 }
             } catch (Exception ignored) {}
 
-            if (playerId == null) playerId = System.getProperty("test.player.id", UUID.randomUUID().toString());
-            if (gameId == null) gameId = System.getProperty("test.game.id", UUID.randomUUID().toString());
+            if (playerId == null) { 
+                System.out.println("No player found. Cannot purchase DLC."); 
+                return; 
+            }
+            if (gameId == null) { 
+                System.out.println("No valid game with DLC found for player " + playerId + ". Cannot purchase DLC."); 
+                return; 
+            }
             if (dlcId == null) dlcId = System.getProperty("test.dlc.id", UUID.randomUUID().toString());
 
             DlcPurchaseEvent dlc = DlcPurchaseEvent.newBuilder()

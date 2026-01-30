@@ -59,14 +59,37 @@ public class GameProjection {
     /**
      * Incrémente le compteur d'incidents pour un jeu donné (best-effort).
      * 
-     * Si le jeu n'existe pas dans le store, aucune action n'est effectuée.
+     * Si le jeu n'existe pas dans le store, il est créé avec les informations minimales.
      * Gère les conversions de type de manière défensive pour éviter les erreurs.
      * 
      * @param gameId Identifiant du jeu concerné
      */
     public void incrementIncidentCount(String gameId) {
-        store.computeIfPresent(gameId, (k, old) -> {
-            java.util.Map<String,Object> m = new java.util.HashMap<>(old);
+        incrementIncidentCount(gameId, "Unknown Game");
+    }
+
+    /**
+     * Incrémente le compteur d'incidents pour un jeu donné avec le nom du jeu.
+     * 
+     * Si le jeu n'existe pas dans le store, il est créé avec les informations minimales.
+     * Gère les conversions de type de manière défensive pour éviter les erreurs.
+     * 
+     * @param gameId Identifiant du jeu concerné
+     * @param gameName Nom du jeu (utilisé uniquement si le jeu n'existe pas déjà)
+     */
+    public void incrementIncidentCount(String gameId, String gameName) {
+        store.compute(gameId, (k, old) -> {
+            java.util.Map<String,Object> m = old != null ? new java.util.HashMap<>(old) : new java.util.HashMap<>();
+            // If game doesn't exist, initialize with minimal data
+            if (old == null) {
+                m.put("gameId", gameId);
+                m.put("gameName", gameName != null ? gameName : "Unknown Game");
+                m.putIfAbsent("versions", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
+                m.putIfAbsent("patches", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
+                m.putIfAbsent("dlcs", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
+                m.putIfAbsent("deprecatedVersions", new java.util.concurrent.CopyOnWriteArrayList<String>());
+                m.putIfAbsent("incidentResponses", new java.util.concurrent.CopyOnWriteArrayList<java.util.Map<String,Object>>());
+            }
             Object cur = m.getOrDefault("incidentCount", 0);
             int val = 0;
             try {

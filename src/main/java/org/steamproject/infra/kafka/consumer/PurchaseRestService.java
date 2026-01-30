@@ -114,10 +114,33 @@ public class PurchaseRestService {
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            // Return flattened list of purchases across players using Kafka Streams
-            var purchases = PlayerStreamsProjection.getAllPurchases();
+            // Return flattened list of all purchases (games + DLCs) across players using Kafka Streams
+            var gamePurchases = PlayerStreamsProjection.getAllPurchases();
+            var dlcPurchases = PlayerStreamsProjection.getAllDlcPurchases();
             
-            String response = mapper.writeValueAsString(purchases);
+            // Combine both lists, ensure DLC entries include a display name (`gameName`) and flag
+            java.util.List<java.util.Map<String, Object>> allPurchases = new java.util.ArrayList<>(gamePurchases);
+            for (java.util.Map<String, Object> dlcEntry : dlcPurchases) {
+                try {
+                    // If DLC purchase provides dlcName, expose it as gameName for UI consistency
+                    Object dlcName = dlcEntry.get("dlcName");
+                    if (dlcName != null && (dlcEntry.get("gameName") == null || dlcEntry.get("gameName").toString().isEmpty())) {
+                        dlcEntry.put("gameName", dlcName);
+                    }
+                    // Ensure DLC flag is set for downstream clients
+                    dlcEntry.put("isDlc", true);
+                    allPurchases.add(dlcEntry);
+                } catch (Throwable t) { /* best-effort */ allPurchases.add(dlcEntry); }
+            }
+            
+            // Sort by timestamp descending
+            allPurchases.sort((a, b) -> {
+                Long tsA = a.get("timestamp") instanceof Number ? ((Number) a.get("timestamp")).longValue() : 0L;
+                Long tsB = b.get("timestamp") instanceof Number ? ((Number) b.get("timestamp")).longValue() : 0L;
+                return tsB.compareTo(tsA);
+            });
+            
+            String response = mapper.writeValueAsString(allPurchases);
             exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
             byte[] bytes = response.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length);
@@ -182,26 +205,11 @@ public class PurchaseRestService {
                             if (gd.get("deprecatedVersions") != null) m.put("deprecatedVersions", gd.get("deprecatedVersions"));
                             if (gd.get("incidentResponses") != null) m.put("incidentResponses", gd.get("incidentResponses"));
                             if (gd.get("incidentCount") != null) m.put("incidentCount", gd.get("incidentCount"));
-                            // enrich with ratings from PlayerProjection (average + list)
+                            // enrich with ratings from Kafka Streams (average + list)
                             try {
-                                var reviewsSnap = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotReviews();
-                                java.util.List<java.util.Map<String,Object>> ratingsList = new java.util.ArrayList<>();
-                                double sum = 0.0; int cnt = 0;
-                                for (var revEntry : reviewsSnap.entrySet()) {
-                                    for (var rv : revEntry.getValue()) {
-                                        try {
-                                            Object gidRv = rv.get("gameId");
-                                            if (gidRv != null && gidRv.equals(gid)) {
-                                                ratingsList.add(rv);
-                                                Object r = rv.get("rating");
-                                                if (r instanceof Number) { sum += ((Number) r).doubleValue(); cnt++; }
-                                                else if (r != null) { try { sum += Double.parseDouble(r.toString()); cnt++; } catch (Exception ignore) {}
-                                                }
-                                            }
-                                        } catch (Throwable t) { /* ignore per-item */ }
-                                    }
-                                }
-                                if (cnt > 0) m.put("averageRating", sum / cnt);
+                                java.util.List<java.util.Map<String,Object>> ratingsList = PlayerStreamsProjection.getReviewsForGame(gid);
+                                Double avgRating = PlayerStreamsProjection.getAverageRatingForGame(gid);
+                                if (avgRating != null) m.put("averageRating", avgRating);
                                 if (!ratingsList.isEmpty()) m.put("ratings", ratingsList);
                             } catch (Throwable t) { /* best-effort */ }
                         }
@@ -340,26 +348,12 @@ public class PurchaseRestService {
                             if (gd.get("deprecatedVersions") != null) m.put("deprecatedVersions", gd.get("deprecatedVersions"));
                             if (gd.get("incidentResponses") != null) m.put("incidentResponses", gd.get("incidentResponses"));
                             if (gd.get("incidentCount") != null) m.put("incidentCount", gd.get("incidentCount"));
-                            // enrich with ratings from PlayerProjection (average + list)
+                            // enrich with ratings from Kafka Streams (average + list)
                             try {
-                                var reviewsSnap = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotReviews();
-                                java.util.List<java.util.Map<String,Object>> ratingsList = new java.util.ArrayList<>();
-                                double sum = 0.0; int cnt = 0;
-                                for (var revEntry : reviewsSnap.entrySet()) {
-                                    for (var rv : revEntry.getValue()) {
-                                        try {
-                                            Object gid = rv.get("gameId");
-                                            if (gid != null && gid.equals(p.length>0? p[0] : null)) {
-                                                ratingsList.add(rv);
-                                                Object r = rv.get("rating");
-                                                if (r instanceof Number) { sum += ((Number) r).doubleValue(); cnt++; }
-                                                else if (r != null) { try { sum += Double.parseDouble(r.toString()); cnt++; } catch (Exception ignore) {}
-                                                }
-                                            }
-                                        } catch (Throwable t) { /* ignore per-item */ }
-                                    }
-                                }
-                                if (cnt > 0) m.put("averageRating", sum / cnt);
+                                String gameIdForRating = p.length > 0 ? p[0] : null;
+                                java.util.List<java.util.Map<String,Object>> ratingsList = PlayerStreamsProjection.getReviewsForGame(gameIdForRating);
+                                Double avgRating = PlayerStreamsProjection.getAverageRatingForGame(gameIdForRating);
+                                if (avgRating != null) m.put("averageRating", avgRating);
                                 if (!ratingsList.isEmpty()) m.put("ratings", ratingsList);
                             } catch (Throwable t) { /* best-effort */ }
                         }
@@ -396,26 +390,11 @@ public class PurchaseRestService {
                             if (gd.get("deprecatedVersions") != null) m.put("deprecatedVersions", gd.get("deprecatedVersions"));
                             if (gd.get("incidentResponses") != null) m.put("incidentResponses", gd.get("incidentResponses"));
                             if (gd.get("incidentCount") != null) m.put("incidentCount", gd.get("incidentCount"));
-                            // enrich with ratings from PlayerProjection (average + list)
+                            // enrich with ratings from Kafka Streams (average + list)
                             try {
-                                var reviewsSnap = org.steamproject.infra.kafka.consumer.PlayerProjection.getInstance().snapshotReviews();
-                                java.util.List<java.util.Map<String,Object>> ratingsList = new java.util.ArrayList<>();
-                                double sum = 0.0; int cnt = 0;
-                                for (var revEntry : reviewsSnap.entrySet()) {
-                                    for (var rv : revEntry.getValue()) {
-                                        try {
-                                            Object gidRv = rv.get("gameId");
-                                            if (gidRv != null && gidRv.equals(gid)) {
-                                                ratingsList.add(rv);
-                                                Object r = rv.get("rating");
-                                                if (r instanceof Number) { sum += ((Number) r).doubleValue(); cnt++; }
-                                                else if (r != null) { try { sum += Double.parseDouble(r.toString()); cnt++; } catch (Exception ignore) {}
-                                                }
-                                            }
-                                        } catch (Throwable t) { /* ignore per-item */ }
-                                    }
-                                }
-                                if (cnt > 0) m.put("averageRating", sum / cnt);
+                                java.util.List<java.util.Map<String,Object>> ratingsList = PlayerStreamsProjection.getReviewsForGame(gid);
+                                Double avgRating = PlayerStreamsProjection.getAverageRatingForGame(gid);
+                                if (avgRating != null) m.put("averageRating", avgRating);
                                 if (!ratingsList.isEmpty()) m.put("ratings", ratingsList);
                             } catch (Throwable t) { /* best-effort */ }
                         }
