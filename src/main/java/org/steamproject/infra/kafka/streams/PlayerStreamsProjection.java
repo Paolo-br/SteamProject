@@ -8,6 +8,7 @@ import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
 import org.apache.kafka.common.serialization.Serde;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
@@ -19,6 +20,7 @@ import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.QueryableStoreTypes;
 import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.steamproject.events.*;
+import java.util.Arrays;
 
 import java.time.Instant;
 import java.util.*;
@@ -34,6 +36,7 @@ public class PlayerStreamsProjection {
     public static final String SESSIONS_STORE = "sessions-store";
     public static final String CRASHES_STORE = "crashes-store";
     public static final String REVIEWS_STORE = "reviews-store";
+    public static final String PURCHASES_STORE = "purchases-store";
     
     private static volatile KafkaStreams streamsInstance;
     private static final ObjectMapper mapper = new ObjectMapper();
@@ -51,11 +54,24 @@ public class PlayerStreamsProjection {
         String schema = System.getenv().getOrDefault("SCHEMA_REGISTRY_URL", "http://localhost:8081");
 
         Properties props = new Properties();
-        props.put(StreamsConfig.APPLICATION_ID_CONFIG, "player-streams-projection");
+        String autoReset = System.getProperty("kafka.auto.offset.reset", "latest");
+        String configuredAppId = System.getProperty("kafka.streams.application.id", "");
+        String appId;
+        if (configuredAppId != null && !configuredAppId.isBlank()) {
+            appId = configuredAppId;
+        } else if ("latest".equalsIgnoreCase(autoReset)) {
+            appId = "player-streams-projection-" + System.currentTimeMillis();
+        } else {
+            appId = "player-streams-projection";
+        }
+        System.out.println("Using Kafka Streams application.id=" + appId + " (auto.offset.reset=" + autoReset + ")");
+        props.put(StreamsConfig.APPLICATION_ID_CONFIG, appId);
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap);
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         props.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, schema);
+
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, System.getProperty("kafka.auto.offset.reset", "latest"));
 
         StreamsBuilder builder = new StreamsBuilder();
 
@@ -253,6 +269,45 @@ public class PlayerStreamsProjection {
                     .withValueSerde(Serdes.String())
             );
 
+        // ==================== PURCHASES STORE ====================
+        // Consume GamePurchaseEvent and aggregate purchases per player
+        KStream<String, Object> purchaseStream = builder.stream(
+            "game-purchase-events",
+            Consumed.with(Serdes.String(), avroSerde)
+        );
+
+        purchaseStream
+            .groupByKey()
+            .aggregate(
+                () -> "[]",
+                (playerId, eventObj, aggregate) -> {
+                    GamePurchaseEvent event = (GamePurchaseEvent) eventObj;
+                    try {
+                        ArrayNode purchases = (ArrayNode) mapper.readTree(aggregate);
+                        ObjectNode purchaseJson = mapper.createObjectNode();
+                        purchaseJson.put("purchaseId", event.getPurchaseId() != null ? event.getPurchaseId().toString() : "");
+                        purchaseJson.put("gameId", event.getGameId() != null ? event.getGameId().toString() : "");
+                        purchaseJson.put("gameName", event.getGameName() != null ? event.getGameName().toString() : "");
+                        purchaseJson.put("playerId", event.getPlayerId() != null ? event.getPlayerId().toString() : playerId);
+                        purchaseJson.put("playerUsername", event.getPlayerUsername() != null ? event.getPlayerUsername().toString() : "");
+                        purchaseJson.put("pricePaid", event.getPricePaid());
+                        purchaseJson.put("platform", event.getPlatform() != null ? event.getPlatform().toString() : "");
+                        purchaseJson.put("publisherId", event.getPublisherId() != null ? event.getPublisherId().toString() : "");
+                        purchaseJson.put("region", event.getRegion() != null ? event.getRegion().toString() : "OTHER");
+                        purchaseJson.put("timestamp", event.getTimestamp());
+                        purchaseJson.put("purchaseDate", Instant.ofEpochMilli(event.getTimestamp()).toString());
+                        purchases.add(purchaseJson);
+                        return mapper.writeValueAsString(purchases);
+                    } catch (Exception e) {
+                        System.err.println("Error processing GamePurchaseEvent: " + e.getMessage());
+                        return aggregate;
+                    }
+                },
+                Materialized.<String, String, KeyValueStore<org.apache.kafka.common.utils.Bytes, byte[]>>as(PURCHASES_STORE)
+                    .withKeySerde(Serdes.String())
+                    .withValueSerde(Serdes.String())
+            );
+
         streamsInstance = new KafkaStreams(builder.build(), props);
         streamsInstance.start();
 
@@ -264,7 +319,7 @@ public class PlayerStreamsProjection {
         }));
 
         System.out.println("PlayerStreamsProjection started with stores: " + 
-            PLAYERS_STORE + ", " + SESSIONS_STORE + ", " + CRASHES_STORE + ", " + REVIEWS_STORE);
+            PLAYERS_STORE + ", " + SESSIONS_STORE + ", " + CRASHES_STORE + ", " + REVIEWS_STORE + ", " + PURCHASES_STORE);
         
         return streamsInstance;
     }
@@ -428,5 +483,84 @@ public class PlayerStreamsProjection {
             System.err.println("Error retrieving reviews: " + e.getMessage());
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * Get purchases for a specific player
+     */
+    public static List<Map<String, Object>> getPurchases(String playerId) {
+        if (streamsInstance == null) {
+            return Collections.emptyList();
+        }
+        
+        try {
+            ReadOnlyKeyValueStore<String, String> store = streamsInstance.store(
+                org.apache.kafka.streams.StoreQueryParameters.fromNameAndType(
+                    PURCHASES_STORE,
+                    QueryableStoreTypes.keyValueStore()
+                )
+            );
+            
+            String json = store.get(playerId);
+            if (json != null && !json.equals("[]")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> purchases = mapper.readValue(json, List.class);
+                return purchases;
+            }
+            return Collections.emptyList();
+        } catch (Exception e) {
+            System.err.println("Error retrieving purchases for player " + playerId + ": " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Get all purchases from all players
+     */
+    public static List<Map<String, Object>> getAllPurchases() {
+        if (streamsInstance == null) {
+            System.err.println("WARNING: streamsInstance is null for getAllPurchases!");
+            return Collections.emptyList();
+        }
+        
+        try {
+            ReadOnlyKeyValueStore<String, String> store = streamsInstance.store(
+                org.apache.kafka.streams.StoreQueryParameters.fromNameAndType(
+                    PURCHASES_STORE,
+                    QueryableStoreTypes.keyValueStore()
+                )
+            );
+            
+            List<Map<String, Object>> allPurchases = new ArrayList<>();
+            try (var iterator = store.all()) {
+                while (iterator.hasNext()) {
+                    var entry = iterator.next();
+                    String json = entry.value;
+                    if (json != null && !json.equals("[]")) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> purchases = mapper.readValue(json, List.class);
+                        allPurchases.addAll(purchases);
+                    }
+                }
+            }
+            // Sort by timestamp descending (most recent first)
+            allPurchases.sort((a, b) -> {
+                Long tsA = a.get("timestamp") instanceof Number ? ((Number) a.get("timestamp")).longValue() : 0L;
+                Long tsB = b.get("timestamp") instanceof Number ? ((Number) b.get("timestamp")).longValue() : 0L;
+                return tsB.compareTo(tsA);
+            });
+            return allPurchases;
+        } catch (Exception e) {
+            System.err.println("Error retrieving all purchases: " + e.getMessage());
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Get the player's library (owned games) from the purchases store
+     */
+    public static List<Map<String, Object>> getLibrary(String playerId) {
+        return getPurchases(playerId);
     }
 }

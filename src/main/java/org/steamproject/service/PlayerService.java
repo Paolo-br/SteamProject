@@ -29,7 +29,11 @@ public class PlayerService {
         if (cache == null) {
             synchronized (this) {
                 if (cache == null) {
-                    cache = Collections.unmodifiableList(generator.generate(40));
+                    int seedCount = 0;
+                    try {
+                        seedCount = Integer.parseInt(System.getProperty("seed.player.count", "0"));
+                    } catch (Exception ignored) {}
+                    cache = Collections.unmodifiableList(generator.generate(seedCount));
                 }
             }
         }

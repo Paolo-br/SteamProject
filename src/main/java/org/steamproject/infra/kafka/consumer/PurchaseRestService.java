@@ -107,35 +107,17 @@ public class PurchaseRestService {
         System.out.println("Purchase REST service listening on http://localhost:" + port + "/api/players/{playerId}/library");
     }
 
-    // ==================== HANDLERS NON MIGRÉS (utilisant encore les consumers classiques) ====================
+    // ==================== HANDLERS MIGRÉS VERS KAFKA STREAMS ====================
 
     static class PurchasesHandler implements HttpHandler {
         private final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            // Return flattened list of purchases across players
-            var snapshot = PlayerLibraryProjection.getInstance().snapshot();
-            java.util.List<java.util.Map<String, Object>> out = new java.util.ArrayList<>();
-            snapshot.forEach((playerId, list) -> {
-                for (Object o : list) {
-                    try {
-                        // java record org.steamproject.model.GameOwnership
-                        var go = (org.steamproject.model.GameOwnership) o;
-                        java.util.Map<String, Object> m = new java.util.HashMap<>();
-                        m.put("playerId", playerId);
-                        m.put("gameId", go.gameId());
-                        m.put("gameName", go.gameName());
-                        m.put("purchaseDate", go.purchaseDate());
-                        m.put("pricePaid", go.pricePaid() == null ? 0.0 : go.pricePaid());
-                        out.add(m);
-                    } catch (Throwable t) {
-                        // Ignore les entrées malformées (best-effort)
-                    }
-                }
-            });
-
-            String response = mapper.writeValueAsString(out);
+            // Return flattened list of purchases across players using Kafka Streams
+            var purchases = PlayerStreamsProjection.getAllPurchases();
+            
+            String response = mapper.writeValueAsString(purchases);
             exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
             byte[] bytes = response.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, bytes.length);

@@ -4,9 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import org.steamproject.infra.kafka.consumer.GameProjection;
-import org.steamproject.infra.kafka.consumer.PlayerLibraryProjection;
 import org.steamproject.infra.kafka.streams.PlayerStreamsProjection;
-import org.steamproject.model.GameOwnership;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,28 +38,25 @@ public class PlayerStreamsHandler implements HttpHandler {
             return;
         }
 
-        // GET /api/players/{playerId}/library (still using classic consumer)
+        // GET /api/players/{playerId}/library (now using Kafka Streams)
         if (path.startsWith("/api/players/") && path.endsWith("/library")) {
             String[] parts = path.split("/");
             if (parts.length >= 5) {
                 String playerId = parts[3];
-                var library = PlayerLibraryProjection.getInstance().getLibrary(playerId);
+                var library = PlayerStreamsProjection.getLibrary(playerId);
                 // Enrich ownership entries with distribution platform for UI library column
                 List<Map<String, Object>> enriched = new ArrayList<>();
-                for (Object o : library) {
+                for (Map<String, Object> purchase : library) {
                     try {
-                        var go = (GameOwnership) o;
-                        Map<String, Object> item = new HashMap<>();
-                        item.put("gameId", go.gameId());
-                        item.put("gameName", go.gameName());
-                        item.put("purchaseDate", go.purchaseDate());
-                        item.put("playtime", go.playtime());
-                        item.put("pricePaid", go.pricePaid());
+                        Map<String, Object> item = new HashMap<>(purchase);
+                        String gameId = (String) purchase.get("gameId");
                         // lookup projection to obtain distributionPlatform
-                        var gd = GameProjection.getInstance().getGame(go.gameId());
-                        if (gd != null) {
-                            Object dp = gd.getOrDefault("distributionPlatform", gd.getOrDefault("platform", null));
-                            if (dp != null) item.put("platform", dp);
+                        if (gameId != null) {
+                            var gd = GameProjection.getInstance().getGame(gameId);
+                            if (gd != null) {
+                                Object dp = gd.getOrDefault("distributionPlatform", gd.getOrDefault("platform", null));
+                                if (dp != null) item.put("platform", dp);
+                            }
                         }
                         enriched.add(item);
                     } catch (Throwable t) { /* best-effort */ }

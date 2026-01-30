@@ -255,10 +255,6 @@ private fun PlayerDetailPlaceholder() {
     ) {
         Text(text = "Sélectionnez un joueur", style = MaterialTheme.typography.subtitle1, color = Color.Gray)
         Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            DetailRow("Inscription:", "-")
-            DetailRow("Jeux:", "-")
-        }
     }
 }
 
