@@ -442,7 +442,6 @@ public class PlayerStreamsProjection {
                 while (iterator.hasNext()) {
                     var entry = iterator.next();
                     count++;
-                    System.out.println("DEBUG: Found player with key: " + entry.key);
                     String json = entry.value;
                     if (json != null && !json.equals("{}")) {
                         @SuppressWarnings("unchecked")

@@ -396,6 +396,27 @@ public class FakeDataGenerator {
     }
 
     /**
+     * Génère un événement d'achat de DLC.
+     * Prérequis: le joueur doit posséder le jeu de base (vérification faite par l'orchestrateur).
+     */
+    public DlcPurchaseEvent generateDlcPurchase(InMemoryDataStore.DlcInfo dlc, PlayerInfo player) {
+        double discount = random.nextDouble() < 0.15 ? 0.85 : 1.0; // 15% de chance de promo
+
+        return DlcPurchaseEvent.newBuilder()
+                .setPurchaseId(UUID.randomUUID().toString())
+                .setEventId(UUID.randomUUID().toString())
+                .setDlcId(dlc.dlcId())
+                .setDlcName(dlc.dlcName())
+                .setGameId(dlc.gameId())
+                .setPlayerId(player.playerId())
+                .setPlayerUsername(player.username())
+                .setPlatform(dlc.platform())
+                .setPricePaid(Math.round(dlc.price() * discount * 100.0) / 100.0)
+                .setTimestamp(Instant.now().toEpochMilli())
+                .build();
+    }
+
+    /**
      * Génère un événement de review/avis publié.
      */
     public ReviewPublishedEvent generateReview(GameInfo game, PlayerInfo player) {

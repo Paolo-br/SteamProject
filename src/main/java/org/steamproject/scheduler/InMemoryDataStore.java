@@ -20,9 +20,14 @@ public class InMemoryDataStore {
     private final List<PurchaseInfo> purchases = new CopyOnWriteArrayList<>();
     private final List<PublisherInfo> publishers = new CopyOnWriteArrayList<>();
     private final List<ReviewInfo> reviews = new CopyOnWriteArrayList<>();
+    private final List<DlcInfo> dlcs = new CopyOnWriteArrayList<>();
+    private final List<DlcPurchaseInfo> dlcPurchases = new CopyOnWriteArrayList<>();
     
     // Compteurs par jeu pour déterminer le type de patch
     private final Map<String, GameMetrics> gameMetrics = new ConcurrentHashMap<>();
+    
+    // Temps de jeu par joueur et par jeu (clé = "playerId:gameId", valeur = minutes jouées)
+    private final Map<String, AtomicLong> playerGamePlaytime = new ConcurrentHashMap<>();
 
     // Configuration minimum pour les événements dépendants
     private static final int MIN_GAMES = 5;
@@ -32,6 +37,9 @@ public class InMemoryDataStore {
     public static final int INCIDENTS_FOR_FIX = 2;           // 2 crashs → patch FIX
     public static final int PURCHASES_FOR_OPTIMIZATION = 3;  // 3 achats → patch OPTIMIZATION
     public static final long PLAYTIME_HOURS_FOR_ADD = 2;     // 2h de jeu → patch ADD (120 min)
+    
+    // Seuil de temps de jeu requis pour pouvoir évaluer un jeu (10h = 600 minutes)
+    public static final long PLAYTIME_HOURS_FOR_REVIEW = 10;
 
     // ========== MÉTRIQUES PAR JEU ==========
     
@@ -84,10 +92,41 @@ public class InMemoryDataStore {
     }
     
     /**
-     * Enregistre du temps de jeu pour un jeu.
+     * Enregistre du temps de jeu pour un jeu (métrique globale du jeu).
      */
     public void recordPlaytime(String gameId, long minutes) {
         getOrCreateMetrics(gameId).addPlaytime(minutes);
+    }
+    
+    /**
+     * Enregistre du temps de jeu pour un joueur sur un jeu spécifique.
+     */
+    public void recordPlayerPlaytime(String playerId, String gameId, long minutes) {
+        String key = playerId + ":" + gameId;
+        playerGamePlaytime.computeIfAbsent(key, k -> new AtomicLong(0)).addAndGet(minutes);
+    }
+    
+    /**
+     * Récupère le temps de jeu d'un joueur sur un jeu spécifique (en minutes).
+     */
+    public long getPlayerPlaytimeMinutes(String playerId, String gameId) {
+        String key = playerId + ":" + gameId;
+        AtomicLong playtime = playerGamePlaytime.get(key);
+        return playtime != null ? playtime.get() : 0;
+    }
+    
+    /**
+     * Récupère le temps de jeu d'un joueur sur un jeu spécifique (en heures).
+     */
+    public long getPlayerPlaytimeHours(String playerId, String gameId) {
+        return getPlayerPlaytimeMinutes(playerId, gameId) / 60;
+    }
+    
+    /**
+     * Vérifie si un joueur a joué suffisamment (10h+) pour pouvoir évaluer un jeu.
+     */
+    public boolean canPlayerReviewGame(String playerId, String gameId) {
+        return getPlayerPlaytimeHours(playerId, gameId) >= PLAYTIME_HOURS_FOR_REVIEW;
     }
     
     /**
@@ -300,6 +339,31 @@ public class InMemoryDataStore {
             String playerUsername
     ) {}
 
+    /**
+     * Informations sur un DLC publié stocké en mémoire.
+     */
+    public record DlcInfo(
+            String dlcId,
+            String dlcName,
+            String gameId,
+            String publisherId,
+            String platform,
+            double price
+    ) {}
+
+    /**
+     * Informations sur un achat de DLC stocké en mémoire.
+     */
+    public record DlcPurchaseInfo(
+            String purchaseId,
+            String dlcId,
+            String dlcName,
+            String gameId,
+            String playerId,
+            String playerUsername,
+            double pricePaid
+    ) {}
+
     // ========== MÉTHODES POUR LES REVIEWS ==========
 
     public void addReview(ReviewInfo review) {
@@ -317,5 +381,100 @@ public class InMemoryDataStore {
 
     public int getReviewCount() {
         return reviews.size();
+    }
+
+    // ========== MÉTHODES POUR LES DLCs ==========
+
+    public void addDlc(DlcInfo dlc) {
+        dlcs.add(dlc);
+    }
+
+    public DlcInfo getRandomDlc() {
+        if (dlcs.isEmpty()) return null;
+        return dlcs.get(ThreadLocalRandom.current().nextInt(dlcs.size()));
+    }
+
+    /**
+     * Retourne un DLC aléatoire pour un jeu que le joueur possède.
+     * @param playerId L'ID du joueur
+     * @return Un DLC pour lequel le joueur possède le jeu de base, ou null
+     */
+    public DlcInfo getRandomDlcForPlayer(String playerId) {
+        if (dlcs.isEmpty()) return null;
+        
+        // Récupère les IDs des jeux que le joueur possède
+        java.util.Set<String> ownedGameIds = purchases.stream()
+                .filter(p -> p.playerId().equals(playerId))
+                .map(PurchaseInfo::gameId)
+                .collect(java.util.stream.Collectors.toSet());
+        
+        if (ownedGameIds.isEmpty()) return null;
+        
+        // Filtre les DLCs pour lesquels le joueur possède le jeu de base
+        // et qu'il n'a pas encore achetés
+        java.util.Set<String> ownedDlcIds = dlcPurchases.stream()
+                .filter(dp -> dp.playerId().equals(playerId))
+                .map(DlcPurchaseInfo::dlcId)
+                .collect(java.util.stream.Collectors.toSet());
+        
+        List<DlcInfo> availableDlcs = dlcs.stream()
+                .filter(dlc -> ownedGameIds.contains(dlc.gameId()))
+                .filter(dlc -> !ownedDlcIds.contains(dlc.dlcId()))
+                .collect(java.util.stream.Collectors.toList());
+        
+        if (availableDlcs.isEmpty()) return null;
+        return availableDlcs.get(ThreadLocalRandom.current().nextInt(availableDlcs.size()));
+    }
+
+    public List<DlcInfo> getAllDlcs() {
+        return List.copyOf(dlcs);
+    }
+
+    public List<DlcInfo> getDlcsForGame(String gameId) {
+        return dlcs.stream()
+                .filter(dlc -> dlc.gameId().equals(gameId))
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    public boolean hasDlcs() {
+        return !dlcs.isEmpty();
+    }
+
+    public int getDlcCount() {
+        return dlcs.size();
+    }
+
+    // ========== MÉTHODES POUR LES ACHATS DE DLC ==========
+
+    public void addDlcPurchase(DlcPurchaseInfo dlcPurchase) {
+        dlcPurchases.add(dlcPurchase);
+    }
+
+    /**
+     * Vérifie si un joueur possède un jeu spécifique.
+     */
+    public boolean playerOwnsGame(String playerId, String gameId) {
+        return purchases.stream()
+                .anyMatch(p -> p.playerId().equals(playerId) && p.gameId().equals(gameId));
+    }
+
+    /**
+     * Vérifie si un joueur a déjà acheté un DLC spécifique.
+     */
+    public boolean playerOwnsDlc(String playerId, String dlcId) {
+        return dlcPurchases.stream()
+                .anyMatch(dp -> dp.playerId().equals(playerId) && dp.dlcId().equals(dlcId));
+    }
+
+    public List<DlcPurchaseInfo> getAllDlcPurchases() {
+        return List.copyOf(dlcPurchases);
+    }
+
+    public int getDlcPurchaseCount() {
+        return dlcPurchases.size();
+    }
+
+    public boolean hasDlcPurchases() {
+        return !dlcPurchases.isEmpty();
     }
 }

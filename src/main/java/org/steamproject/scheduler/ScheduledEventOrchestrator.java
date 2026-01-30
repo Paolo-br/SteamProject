@@ -30,6 +30,7 @@ public class ScheduledEventOrchestrator {
     private static final String TOPIC_CRASH = "crash-report-events";
     private static final String TOPIC_PATCH = "patch-published-events";
     private static final String TOPIC_DLC = "dlc-published-events";
+    private static final String TOPIC_DLC_PURCHASE = "dlc-purchase-events";
     private static final String TOPIC_REVIEW = "review-published-events";
     private static final String TOPIC_REVIEW_VOTE = "review-voted-events";
 
@@ -49,6 +50,7 @@ public class ScheduledEventOrchestrator {
     private final AtomicInteger crashCount = new AtomicInteger(0);
     private final AtomicInteger patchCount = new AtomicInteger(0);
     private final AtomicInteger dlcCount = new AtomicInteger(0);
+    private final AtomicInteger dlcPurchaseCount = new AtomicInteger(0);
     private final AtomicInteger reviewCount = new AtomicInteger(0);
     private final AtomicInteger reviewVoteCount = new AtomicInteger(0);
     private final AtomicLong startTime = new AtomicLong(0);
@@ -133,6 +135,7 @@ public class ScheduledEventOrchestrator {
     private static final int INIT_CRASHS_COUNT = 8;
     private static final int INIT_PATCHES_COUNT = 5;
     private static final int INIT_DLCS_COUNT = 5;
+    private static final int INIT_DLC_PURCHASES_COUNT = 8;
     private static final int INIT_REVIEWS_COUNT = 10;
     private static final int INIT_REVIEW_VOTES_COUNT = 15;
 
@@ -242,6 +245,14 @@ public class ScheduledEventOrchestrator {
                 TimeUnit.MILLISECONDS
         );
 
+        // Achats de DLC (contrainte Kafka Streams: le joueur doit posséder le jeu de base)
+        scheduler.scheduleAtFixedRate(
+                this::produceDlcPurchase,
+                config.getDependentPhase3Delay() * 2 + 5000, // Après les premiers DLCs
+                config.getDlcInterval() / 2, // Plus fréquent que la publication de DLC
+                TimeUnit.MILLISECONDS
+        );
+
         // Reviews
         scheduler.scheduleAtFixedRate(
                 this::produceReview,
@@ -327,6 +338,12 @@ public class ScheduledEventOrchestrator {
             produceDlcSync();
         }
         System.out.println("   ✅ " + dlcCount.get() + " DLCs créés\n");
+
+        System.out.println("🎁 Création de " + INIT_DLC_PURCHASES_COUNT + " achats de DLC (contrainte: jeu de base requis)...");
+        for (int i = 0; i < INIT_DLC_PURCHASES_COUNT; i++) {
+            produceDlcPurchaseSync();
+        }
+        System.out.println("   ✅ " + dlcPurchaseCount.get() + " achats de DLC créés\n");
 
         System.out.println("📝 Création de " + INIT_REVIEWS_COUNT + " avis...");
         for (int i = 0; i < INIT_REVIEWS_COUNT; i++) {
@@ -431,8 +448,10 @@ public class ScheduledEventOrchestrator {
             GameSessionEvent evt = generator.generateSession(game, player);
             producer.send(new ProducerRecord<>(TOPIC_SESSION, evt.getSessionId().toString(), evt)).get();
             
-            // Enregistrer le temps de jeu dans les métriques du jeu
+            // Enregistrer le temps de jeu dans les métriques du jeu (global)
             dataStore.recordPlaytime(game.gameId(), evt.getSessionDuration());
+            // Enregistrer le temps de jeu pour ce joueur sur ce jeu spécifique
+            dataStore.recordPlayerPlaytime(player.playerId(), game.gameId(), evt.getSessionDuration());
             
             sessionCount.incrementAndGet();
         } catch (Exception e) {
@@ -447,6 +466,12 @@ public class ScheduledEventOrchestrator {
             GameInfo game = findGameById(purchase.gameId());
             PlayerInfo player = findPlayerById(purchase.playerId());
             if (game == null || player == null) return;
+            
+            // Vérifier que le joueur a joué au moins 10h à ce jeu
+            if (!dataStore.canPlayerReviewGame(player.playerId(), game.gameId())) {
+                // Pas assez de temps de jeu, on ne génère pas de rating
+                return;
+            }
             
             NewRatingEvent evt = generator.generateRating(game, player);
             producer.send(new ProducerRecord<>(TOPIC_RATING, evt.getPlayerId().toString(), evt)).get();
@@ -513,9 +538,70 @@ public class ScheduledEventOrchestrator {
             GameInfo game = dataStore.getRandomGame();
             DlcPublishedEvent evt = generator.generateDlc(game);
             producer.send(new ProducerRecord<>(TOPIC_DLC, evt.getDlcId().toString(), evt)).get();
+            
+            // Stocker le DLC pour les achats ultérieurs
+            dataStore.addDlc(new InMemoryDataStore.DlcInfo(
+                evt.getDlcId().toString(),
+                evt.getDlcName().toString(),
+                evt.getGameId().toString(),
+                evt.getPublisherId().toString(),
+                evt.getPlatform().toString(),
+                evt.getPrice()
+            ));
+            
             dlcCount.incrementAndGet();
         } catch (Exception e) {
             System.err.println("❌ Erreur lors de la création du DLC: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Produit un achat de DLC de manière synchrone.
+     * CONTRAINTE KAFKA STREAMS: Le joueur doit posséder le jeu de base pour acheter le DLC.
+     */
+    private void produceDlcPurchaseSync() {
+        if (!dataStore.hasDlcs() || !dataStore.hasPurchases()) return;
+        try {
+            // Récupérer un joueur qui a déjà acheté des jeux
+            PurchaseInfo existingPurchase = dataStore.getRandomPurchase();
+            PlayerInfo player = findPlayerById(existingPurchase.playerId());
+            if (player == null) return;
+            
+            // Trouver un DLC pour un jeu que le joueur possède
+            InMemoryDataStore.DlcInfo dlc = dataStore.getRandomDlcForPlayer(player.playerId());
+            if (dlc == null) {
+                // Aucun DLC disponible pour les jeux que ce joueur possède
+                return;
+            }
+            
+            // Vérification de la contrainte: le joueur doit posséder le jeu de base
+            if (!dataStore.playerOwnsGame(player.playerId(), dlc.gameId())) {
+                System.out.println("⚠️ Joueur " + player.username() + " ne possède pas le jeu de base pour le DLC " + dlc.dlcName());
+                return;
+            }
+            
+            // Vérifier que le joueur n'a pas déjà ce DLC
+            if (dataStore.playerOwnsDlc(player.playerId(), dlc.dlcId())) {
+                return;
+            }
+            
+            DlcPurchaseEvent evt = generator.generateDlcPurchase(dlc, player);
+            producer.send(new ProducerRecord<>(TOPIC_DLC_PURCHASE, evt.getPlayerId().toString(), evt)).get();
+            
+            // Stocker l'achat de DLC
+            dataStore.addDlcPurchase(new InMemoryDataStore.DlcPurchaseInfo(
+                evt.getPurchaseId().toString(),
+                dlc.dlcId(),
+                dlc.dlcName(),
+                dlc.gameId(),
+                player.playerId(),
+                player.username(),
+                evt.getPricePaid()
+            ));
+            
+            dlcPurchaseCount.incrementAndGet();
+        } catch (Exception e) {
+            System.err.println("❌ Erreur lors de l'achat du DLC: " + e.getMessage());
         }
     }
 
@@ -526,6 +612,12 @@ public class ScheduledEventOrchestrator {
             GameInfo game = findGameById(purchase.gameId());
             PlayerInfo player = findPlayerById(purchase.playerId());
             if (game == null || player == null) return;
+            
+            // Vérifier que le joueur a joué au moins 10h à ce jeu
+            if (!dataStore.canPlayerReviewGame(player.playerId(), game.gameId())) {
+                // Pas assez de temps de jeu, on ne génère pas de review
+                return;
+            }
             
             ReviewPublishedEvent evt = generator.generateReview(game, player);
             producer.send(new ProducerRecord<>(TOPIC_REVIEW, evt.getReviewId().toString(), evt)).get();
@@ -682,12 +774,15 @@ public class ScheduledEventOrchestrator {
             producer.send(new ProducerRecord<>(TOPIC_SESSION, evt.getSessionId().toString(), evt), 
                     this::handleSendResult);
             
-            // Enregistrer le temps de jeu dans les métriques du jeu
+            // Enregistrer le temps de jeu dans les métriques du jeu (global)
             dataStore.recordPlaytime(game.gameId(), evt.getSessionDuration());
+            // Enregistrer le temps de jeu pour ce joueur sur ce jeu spécifique
+            dataStore.recordPlayerPlaytime(player.playerId(), game.gameId(), evt.getSessionDuration());
             
             sessionCount.incrementAndGet();
             System.out.println("🎯 Session: " + player.username() + " joue à " + game.gameName() + 
-                    " (" + evt.getSessionDuration() + " min)");
+                    " (" + evt.getSessionDuration() + " min, total: " + 
+                    dataStore.getPlayerPlaytimeHours(player.playerId(), game.gameId()) + "h)");
                     
         } catch (Exception e) {
             System.err.println("❌ Erreur Session: " + e.getMessage());
@@ -696,6 +791,7 @@ public class ScheduledEventOrchestrator {
 
     /**
      * Produit un événement NewRating.
+     * Requiert que le joueur ait joué au moins 10h au jeu.
      */
     private void produceRating() {
         if (!dataStore.hasPurchases()) return;
@@ -707,13 +803,20 @@ public class ScheduledEventOrchestrator {
             
             if (game == null || player == null) return;
             
+            // Vérifier que le joueur a joué au moins 10h à ce jeu
+            if (!dataStore.canPlayerReviewGame(player.playerId(), game.gameId())) {
+                // Pas assez de temps de jeu, on skip silencieusement
+                return;
+            }
+            
             NewRatingEvent evt = generator.generateRating(game, player);
             producer.send(new ProducerRecord<>(TOPIC_RATING, evt.getPlayerId().toString(), evt), 
                     this::handleSendResult);
             
             ratingCount.incrementAndGet();
             System.out.println("⭐ Rating: " + player.username() + " note " + game.gameName() + 
-                    " → " + evt.getRating() + "/5");
+                    " → " + evt.getRating() + "/5 (après " + 
+                    dataStore.getPlayerPlaytimeHours(player.playerId(), game.gameId()) + "h de jeu)");
                     
         } catch (Exception e) {
             System.err.println("❌ Erreur Rating: " + e.getMessage());
@@ -831,6 +934,16 @@ public class ScheduledEventOrchestrator {
             producer.send(new ProducerRecord<>(TOPIC_DLC, evt.getDlcId().toString(), evt), 
                     this::handleSendResult);
             
+            // Stocker le DLC pour les achats ultérieurs
+            dataStore.addDlc(new InMemoryDataStore.DlcInfo(
+                evt.getDlcId().toString(),
+                evt.getDlcName().toString(),
+                evt.getGameId().toString(),
+                evt.getPublisherId().toString(),
+                evt.getPlatform().toString(),
+                evt.getPrice()
+            ));
+            
             dlcCount.incrementAndGet();
             System.out.println("📦 DLC: " + evt.getDlcName() + " (" + evt.getPrice() + "€, " + 
                     evt.getSizeInMB() + " MB)");
@@ -841,7 +954,64 @@ public class ScheduledEventOrchestrator {
     }
 
     /**
+     * Produit un événement DlcPurchase.
+     * CONTRAINTE KAFKA STREAMS: Le joueur doit posséder le jeu de base pour acheter le DLC.
+     */
+    private void produceDlcPurchase() {
+        if (!dataStore.hasDlcs() || !dataStore.hasPurchases()) return;
+        
+        try {
+            // Récupérer un joueur qui a déjà acheté des jeux
+            PurchaseInfo existingPurchase = dataStore.getRandomPurchase();
+            PlayerInfo player = findPlayerById(existingPurchase.playerId());
+            if (player == null) return;
+            
+            // Trouver un DLC pour un jeu que le joueur possède (contrainte Kafka Streams)
+            InMemoryDataStore.DlcInfo dlc = dataStore.getRandomDlcForPlayer(player.playerId());
+            if (dlc == null) {
+                // Aucun DLC disponible pour les jeux que ce joueur possède
+                return;
+            }
+            
+            // Double vérification de la contrainte: le joueur doit posséder le jeu de base
+            if (!dataStore.playerOwnsGame(player.playerId(), dlc.gameId())) {
+                System.out.println("⚠️ Contrainte Kafka Streams: " + player.username() + 
+                    " ne possède pas le jeu de base pour " + dlc.dlcName());
+                return;
+            }
+            
+            // Vérifier que le joueur n'a pas déjà ce DLC
+            if (dataStore.playerOwnsDlc(player.playerId(), dlc.dlcId())) {
+                return;
+            }
+            
+            DlcPurchaseEvent evt = generator.generateDlcPurchase(dlc, player);
+            producer.send(new ProducerRecord<>(TOPIC_DLC_PURCHASE, evt.getPlayerId().toString(), evt), 
+                    this::handleSendResult);
+            
+            // Stocker l'achat de DLC
+            dataStore.addDlcPurchase(new InMemoryDataStore.DlcPurchaseInfo(
+                evt.getPurchaseId().toString(),
+                dlc.dlcId(),
+                dlc.dlcName(),
+                dlc.gameId(),
+                player.playerId(),
+                player.username(),
+                evt.getPricePaid()
+            ));
+            
+            dlcPurchaseCount.incrementAndGet();
+            System.out.println("🎁 Achat DLC: " + player.username() + " → " + dlc.dlcName() + 
+                    " (" + evt.getPricePaid() + "€) [Jeu de base possédé ✓]");
+                    
+        } catch (Exception e) {
+            System.err.println("❌ Erreur DLC Purchase: " + e.getMessage());
+        }
+    }
+
+    /**
      * Produit un événement ReviewPublished.
+     * Requiert que le joueur ait joué au moins 10h au jeu.
      */
     private void produceReview() {
         if (!dataStore.hasPurchases()) return;
@@ -852,6 +1022,12 @@ public class ScheduledEventOrchestrator {
             PlayerInfo player = findPlayerById(purchase.playerId());
             
             if (game == null || player == null) return;
+            
+            // Vérifier que le joueur a joué au moins 10h à ce jeu
+            if (!dataStore.canPlayerReviewGame(player.playerId(), game.gameId())) {
+                // Pas assez de temps de jeu, on skip silencieusement
+                return;
+            }
             
             ReviewPublishedEvent evt = generator.generateReview(game, player);
             producer.send(new ProducerRecord<>(TOPIC_REVIEW, evt.getReviewId().toString(), evt), 
@@ -867,7 +1043,8 @@ public class ScheduledEventOrchestrator {
             
             reviewCount.incrementAndGet();
             System.out.println("📝 Review: " + player.username() + " → " + game.gameName() + 
-                    " (" + evt.getRating() + "/5)");
+                    " (" + evt.getRating() + "/5, après " + 
+                    dataStore.getPlayerPlaytimeHours(player.playerId(), game.gameId()) + "h de jeu)");
                     
         } catch (Exception e) {
             System.err.println("❌ Erreur Review: " + e.getMessage());
@@ -934,12 +1111,16 @@ public class ScheduledEventOrchestrator {
                 ratingCount.get(), crashCount.get());
         System.out.printf("║  🔧 Patches:   %5d  │  📦 DLCs:      %5d              ║%n", 
                 patchCount.get(), dlcCount.get());
-        System.out.printf("║  📝 Reviews:   %5d  │  👍 Votes:     %5d              ║%n", 
-                reviewCount.get(), reviewVoteCount.get());
+        System.out.printf("║  🎁 DLC Achats:%5d  │  📝 Reviews:   %5d              ║%n", 
+                dlcPurchaseCount.get(), reviewCount.get());
+        System.out.printf("║  👍 Votes:     %5d  │                                   ║%n", 
+                reviewVoteCount.get());
         System.out.println("╠════════════════════════════════════════════════════════════╣");
         System.out.printf("║  📂 DataStore: %d éditeurs, %d jeux, %d joueurs, %d achats  ║%n",
                 dataStore.getPublisherCount(), dataStore.getGameCount(), 
                 dataStore.getPlayerCount(), dataStore.getPurchaseCount());
+        System.out.printf("║  📂 DLCs: %d publiés, %d achetés                            ║%n",
+                dataStore.getDlcCount(), dataStore.getDlcPurchaseCount());
         System.out.println("╚════════════════════════════════════════════════════════════╝\n");
     }
 
