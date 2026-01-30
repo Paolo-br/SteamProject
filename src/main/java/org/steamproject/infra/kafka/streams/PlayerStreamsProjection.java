@@ -756,6 +756,9 @@ public class PlayerStreamsProjection {
                 long totalMinutes = playtimeByGame.get(gameId);
                 int hours = (int) (totalMinutes / 60);
                 enriched.put("playtime", hours);
+            } else {
+                // Toujours inclure le playtime, même à 0, pour l'affichage dans la bibliothèque
+                enriched.put("playtime", 0);
             }
             enrichedLibrary.add(enriched);
         }

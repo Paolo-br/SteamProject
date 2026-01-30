@@ -196,7 +196,7 @@ private fun PlayerDetailContent(player: Player, libraryState: List<Map<String, A
                                     is Number -> p.toInt()
                                     else -> 0
                                 }
-                                Text(text = if (play > 0) "${play} h" else "-", modifier = Modifier.weight(1f))
+                                Text(text = "${play} h", modifier = Modifier.weight(1f))
                             }
                             Divider()
                         }
