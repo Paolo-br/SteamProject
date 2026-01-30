@@ -123,9 +123,10 @@ public class GameProjection {
      * @param dlcId Identifiant unique du DLC
      * @param dlcName Nom du DLC
      * @param price Prix du DLC
+     * @param sizeInMB Taille du DLC en mégaoctets
      * @param releaseTimestamp Timestamp de sortie du DLC
      */
-    public void addDlc(String gameId, String dlcId, String dlcName, Double price, Long releaseTimestamp) {
+    public void addDlc(String gameId, String dlcId, String dlcName, Double price, Long sizeInMB, Long releaseTimestamp) {
         store.computeIfPresent(gameId, (k, old) -> {
             java.util.Map<String,Object> m = new java.util.HashMap<>(old);
             var dlcs = (java.util.List<java.util.Map<String,Object>>) m.getOrDefault("dlcs", new java.util.concurrent.CopyOnWriteArrayList<>());
@@ -133,6 +134,7 @@ public class GameProjection {
             d.put("dlcId", dlcId);
             d.put("dlcName", dlcName);
             d.put("price", price);
+            d.put("sizeInMB", sizeInMB != null ? sizeInMB : 0L);
             d.put("releaseTimestamp", releaseTimestamp);
             dlcs.add(0, d);
             m.put("dlcs", dlcs);

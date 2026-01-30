@@ -302,8 +302,9 @@ public class PublisherConsumer {
             String dlcId = evt.getDlcId() == null ? java.util.UUID.randomUUID().toString() : evt.getDlcId().toString();
             String dlcName = evt.getDlcName() == null ? null : evt.getDlcName().toString();
             Double price = evt.getPrice();
+            Long sizeInMB = evt.getSizeInMB();
             Long ts = evt.getReleaseTimestamp();
-            GameProjection.getInstance().addDlc(gameId, dlcId, dlcName, price, ts == null ? null : ts);
+            GameProjection.getInstance().addDlc(gameId, dlcId, dlcName, price, sizeInMB, ts == null ? null : ts);
             System.out.println("PublisherConsumer added DLC " + dlcId + " for game=" + gameId);
         } catch (Exception ex) { ex.printStackTrace(); }
     }

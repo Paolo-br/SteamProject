@@ -10,6 +10,7 @@
     {"name": "platform", "type": "string"},
     {"name": "dlcName", "type": "string"},
     {"name": "price", "type": "double"},
+    {"name": "sizeInMB", "type": "long", "default": 0, "doc": "Size of the DLC in megabytes"},
     {"name": "releaseTimestamp", "type": "long", "logicalType": "timestamp-millis"}
   ]
 }

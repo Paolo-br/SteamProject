@@ -228,3 +228,30 @@ tasks.register<JavaExec>("runPlayerEventsConsumer") {
     dependsOn("generateAvroJava", "classes")
 }
 
+// ========== EVENT ORCHESTRATOR / SCHEDULER ==========
+
+tasks.register<JavaExec>("runEventOrchestrator") {
+    group = "application"
+    description = "Run the scheduled event orchestrator to generate Kafka events periodically"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.scheduler.ScheduledEventOrchestrator")
+    dependsOn("generateAvroJava", "classes")
+    
+    // Permet de passer un fichier de configuration optionnel via -Pconfig=path/to/config.properties
+    if (project.hasProperty("config")) {
+        args(project.property("config").toString())
+    }
+}
+
+tasks.register<JavaExec>("runScheduler") {
+    group = "application"
+    description = "Alias for runEventOrchestrator"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("org.steamproject.scheduler.ScheduledEventOrchestrator")
+    dependsOn("generateAvroJava", "classes")
+    
+    if (project.hasProperty("config")) {
+        args(project.property("config").toString())
+    }
+}
+
